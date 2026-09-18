@@ -4,12 +4,9 @@ import Combine
 
 /// Контент попапа Menu Bar: ближайшая встреча, встречи на сегодня и
 /// Quick Rooms — с рабочей кнопкой "Подключиться" у каждой записи.
-///
-/// Обновляется раз в 30 секунд через обычный `Timer`, пока попап открыт —
-/// не `TimelineView`, который в роли лейбла статус-бар-айтема провоцирует
-/// бесконечную перерисовку.
 struct MenuBarContentView: View {
     @Environment(MeetingStore.self) private var store
+    @Environment(AppSettingsStore.self) private var settings
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
@@ -35,19 +32,7 @@ struct MenuBarContentView: View {
         let nextOccurrence = UpcomingMeetingsProvider.nextUpcomingOccurrence(
             meetings: store.meetings, exceptions: store.exceptions, now: now, calendar: calendar
         )
-        // Исключаем встречу, уже показанную в "Следующая встреча" — не
-        // дублируем её ещё раз в списке "Сегодня".
         let remainingTodayOccurrences = todayOccurrences.filter { $0.id != nextOccurrence?.id }
-        // "Сегодня" скрывается ПОЛНОСТЬЮ (без заголовка и без пустого
-        // состояния), если единственная причина её пустоты — то, что
-        // единственная сегодняшняя встреча уже показана выше как
-        // "Следующая встреча" (в этом случае заголовок "Следующая
-        // встреча" сам получает пометку "· Сегодня" — см.
-        // `nextOccurrenceSectionTitle`). Показывать в этом случае "На
-        // сегодня встреч нет" было бы вводящим в заблуждение —
-        // противоречило бы блоку прямо над ним. Пустое состояние
-        // показывается только тогда, когда на сегодня ДЕЙСТВИТЕЛЬНО нет
-        // ни одной встречи.
         let isTodaySectionRedundant = remainingTodayOccurrences.isEmpty && !todayOccurrences.isEmpty
         let quickRooms = store.meetings.filter { $0.type == .quickRoom && $0.enabled }
 
@@ -129,11 +114,6 @@ struct MenuBarContentView: View {
         }
     }
 
-    /// Показывает главное окно, приводя в порядок два возможных состояния:
-    /// оно уже открыто (просто выводим на передний план) или было закрыто
-    /// пользователем (создаём заново через `openWindow`). Без этой
-    /// проверки повторные нажатия при уже открытом окне создавали бы
-    /// дублирующиеся окна.
     private func openMainWindow() {
         if let window = NSApp.windows.first(where: { $0.isVisible && $0.styleMask.contains(.titled) }) {
             window.makeKeyAndOrderFront(nil)
@@ -152,17 +132,14 @@ struct MenuBarContentView: View {
             .padding(.bottom, 2)
     }
 
-    /// "Следующая встреча", а если она приходится на сегодня — "Следующая
-    /// встреча · Сегодня", чтобы явно дать понять, что это одновременно и
-    /// ближайшая, и сегодняшняя встреча, даже когда отдельная секция
-    /// "Сегодня" из-за этого совпадения скрыта.
     private func nextOccurrenceSectionTitle(_ occurrence: MeetingOccurrence, now: Date, calendar: Calendar) -> String {
         let isToday = calendar.isDate(occurrence.startDate, inSameDayAs: now)
         return isToday ? "Следующая встреча · Сегодня" : "Следующая встреча"
     }
 
     private func occurrenceRow(_ occurrence: MeetingOccurrence, subtitle: String) -> some View {
-        HStack {
+        let connectOptions = MeetingLauncher.connectOptions(for: occurrence.meeting, telemostMode: settings.telemostConnectionMode)
+        return HStack {
             ServiceIconView(service: occurrence.meeting.service, size: 22)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -173,27 +150,32 @@ struct MenuBarContentView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Подключиться") {
-                MeetingLauncher.open(occurrence.meeting.url)
+            ForEach(connectOptions) { option in
+                Button(option.title) {
+                    MeetingLauncher.open(option.url)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
     }
 
     private func quickRoomRow(_ meeting: Meeting) -> some View {
-        HStack {
+        let connectOptions = MeetingLauncher.connectOptions(for: meeting, telemostMode: settings.telemostConnectionMode)
+        return HStack {
             ServiceIconView(service: meeting.service, size: 22)
             Text(meeting.name)
                 .font(.body)
             Spacer()
-            Button("Подключиться") {
-                MeetingLauncher.open(meeting.url)
+            ForEach(connectOptions) { option in
+                Button(option.title) {
+                    MeetingLauncher.open(option.url)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
@@ -209,4 +191,5 @@ struct MenuBarContentView: View {
 #Preview {
     MenuBarContentView()
         .environment(MeetingStore())
+        .environment(AppSettingsStore())
 }

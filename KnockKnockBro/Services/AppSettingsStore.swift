@@ -1,12 +1,27 @@
 import Foundation
 import Observation
 
+/// Режим подключения к встречам Яндекс Телемоста.
+enum TelemostConnectionMode: String, CaseIterable, Identifiable {
+    case both
+    case desktopOnly
+    case webOnly
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .both: return "Веб-версия и Desktop-приложение"
+        case .desktopOnly: return "Только Desktop-приложение"
+        case .webOnly: return "Только Веб-версия"
+        }
+    }
+}
+
 /// Лёгкое хранилище пользовательских настроек уровня приложения — в
 /// отличие от `MeetingStore` (доменные данные о встречах, версионированный
-/// JSON, экспортируемый пользователем), здесь живут локальные предпочтения
-/// вроде глобального countdown по умолчанию и переключателей экрана
-/// Settings. Хранится через стандартный `UserDefaults`, как и полагается
-/// для таких настроек в приложениях для macOS.
+/// JSON, экспортируемый пользователем), здесь живут локальные предпочтения.
+/// Хранится через стандартный `UserDefaults`.
 @Observable
 final class AppSettingsStore {
 
@@ -14,17 +29,13 @@ final class AppSettingsStore {
         static let defaultAutoJoinCountdown = "defaultAutoJoinCountdown"
         static let showInMenuBar = "showInMenuBar"
         static let openMainWindowOnLaunch = "openMainWindowOnLaunch"
+        static let telemostConnectionMode = "telemostConnectionMode"
     }
 
-    /// Значение по умолчанию, если пользователь ещё ничего не настраивал —
-    /// совпадает с тем, что показано на макете интерфейса.
     static let fallbackDefaultCountdown: TimeInterval = 10
 
     private let defaults: UserDefaults
 
-    /// Глобальное значение обратного отсчёта перед автоподключением,
-    /// используемое для встреч, у которых `AutoJoinSettings.countdownOverride
-    /// == nil`.
     var defaultAutoJoinCountdown: TimeInterval {
         didSet {
             defaults.set(defaultAutoJoinCountdown, forKey: Key.defaultAutoJoinCountdown)
@@ -41,17 +52,20 @@ final class AppSettingsStore {
     }
 
     /// Открывать ли главное окно автоматически при запуске приложения.
-    /// По умолчанию `false` — приложение по умолчанию стартует только в
-    /// Menu Bar, без открытия окна.
     var openMainWindowOnLaunch: Bool {
         didSet {
             defaults.set(openMainWindowOnLaunch, forKey: Key.openMainWindowOnLaunch)
         }
     }
 
-    /// - Parameter defaults: `UserDefaults`, используемый для хранения.
-    ///   Вынесен наружу, чтобы тесты могли подставить изолированный
-    ///   suite и не трогать реальные настройки пользователя.
+    /// Режим подключения к встречам Яндекс Телемоста — веб, desktop, или
+    /// оба варианта одновременно. По умолчанию оба.
+    var telemostConnectionMode: TelemostConnectionMode {
+        didSet {
+            defaults.set(telemostConnectionMode.rawValue, forKey: Key.telemostConnectionMode)
+        }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
@@ -68,6 +82,13 @@ final class AppSettingsStore {
             self.openMainWindowOnLaunch = defaults.bool(forKey: Key.openMainWindowOnLaunch)
         } else {
             self.openMainWindowOnLaunch = false
+        }
+
+        if let rawValue = defaults.string(forKey: Key.telemostConnectionMode),
+           let mode = TelemostConnectionMode(rawValue: rawValue) {
+            self.telemostConnectionMode = mode
+        } else {
+            self.telemostConnectionMode = .both
         }
     }
 }

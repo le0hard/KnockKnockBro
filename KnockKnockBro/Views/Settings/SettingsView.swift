@@ -3,8 +3,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 /// Экран настроек KnockKnockBro, открываемый через нативную SwiftUI
-/// `Settings` сцену (стандартный `⌘,` и пункт в системном меню приложения
-/// подключаются автоматически).
+/// `Settings` сцену.
 struct SettingsView: View {
     @Environment(AppSettingsStore.self) private var settings
     @Environment(MeetingStore.self) private var store
@@ -76,6 +75,20 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("Сервисы видеосвязи") {
+                Picker(
+                    "Яндекс Телемост",
+                    selection: Binding(
+                        get: { settings.telemostConnectionMode },
+                        set: { settings.telemostConnectionMode = $0 }
+                    )
+                ) {
+                    ForEach(TelemostConnectionMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
             }
 
             Section("Импорт / Экспорт") {

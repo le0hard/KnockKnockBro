@@ -86,6 +86,7 @@ struct KnockKnockBroApp: App {
         )) {
             MenuBarContentView()
                 .environment(meetingStore)
+                .environment(appSettingsStore)
         } label: {
             MenuBarLabelView()
                 .environment(meetingStore)

@@ -59,4 +59,19 @@ final class AppSettingsStoreTests: XCTestCase {
         let store2 = AppSettingsStore(defaults: defaults)
         XCTAssertTrue(store2.openMainWindowOnLaunch)
     }
+    
+    // MARK: - telemostConnectionMode
+
+    func testTelemostConnectionModeDefaultsToBothWhenNothingStored() {
+        let store = AppSettingsStore(defaults: defaults)
+        XCTAssertEqual(store.telemostConnectionMode, .both)
+    }
+
+    func testTelemostConnectionModePersistsAcrossInstances() {
+        let store1 = AppSettingsStore(defaults: defaults)
+        store1.telemostConnectionMode = .desktopOnly
+
+        let store2 = AppSettingsStore(defaults: defaults)
+        XCTAssertEqual(store2.telemostConnectionMode, .desktopOnly)
+    }
 }

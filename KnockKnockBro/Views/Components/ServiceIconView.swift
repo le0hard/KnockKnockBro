@@ -3,14 +3,7 @@ import SwiftUI
 /// Небольшой цветной "чип" с иконкой сервиса — НЕ логотип (логотипы
 /// сервисов видеосвязи защищены товарными знаками и не воспроизводятся
 /// приложением), а стилизованный значок в характерной для каждого
-/// сервиса цветовой гамме. Этого достаточно, чтобы встречи разных
-/// сервисов визуально различались на глаз, не копируя саму графику
-/// бренда.
-///
-/// Цвет вынесен сюда, в View-слой, а не в модель `MeetingService` — это
-/// сохраняет `Models` framework-agnostic: они не зависят от SwiftUI/`Color`
-/// и продолжают свободно использоваться в сервисах и тестах без
-/// UI-зависимостей.
+/// сервиса цветовой гамме.
 struct ServiceIconView: View {
     let service: MeetingService
     var size: CGFloat = 28
@@ -22,15 +15,15 @@ struct ServiceIconView: View {
             .overlay {
                 Image(systemName: service.systemImageName)
                     .font(.system(size: size * 0.5, weight: .medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Self.iconColor(for: service))
             }
     }
 
-    /// Цветовая гамма, характерная для каждого сервиса.
+    /// Цветовая гамма фона чипа, характерная для каждого сервиса.
     static func tintColor(for service: MeetingService) -> Color {
         switch service {
         case .yandexTelemost:
-            return Color(hex: "FC3F1D") // фирменный красный Яндекса
+            return Color(hex: "00AC47") // зелёный, отличается от Meet цветом иконки внутри
         case .googleMeet:
             return Color(hex: "00AC47") // характерный зелёный Google Meet
         case .zoom:
@@ -41,8 +34,19 @@ struct ServiceIconView: View {
             return Color.secondary
         }
     }
-}
 
+    /// Цвет символа внутри чипа — для Телемоста и Meet отличается,
+    /// так как оба сервиса используют одинаковый
+    /// зелёный фон и различаются именно цветом иконки.
+    static func iconColor(for service: MeetingService) -> Color {
+        switch service {
+        case .yandexTelemost:
+            return .black
+        default:
+            return .white
+        }
+    }
+}
 
 #Preview {
     HStack(spacing: 12) {

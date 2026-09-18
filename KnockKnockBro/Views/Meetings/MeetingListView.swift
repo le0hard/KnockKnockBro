@@ -25,17 +25,9 @@ private enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
 
 /// Главный экран приложения: sidebar-навигация между "Сегодня", "Все
 /// встречи" и "Быстрый доступ".
-///
-/// "Быстрый доступ" ЗАКРЕПЛЁН отдельной секцией на экранах "Сегодня" и
-/// "Все встречи" — Quick Rooms видны одновременно с календарными
-/// встречами на одном экране, как в исходном макете интерфейса. Отдельный
-/// пункт "Быстрый доступ" в sidebar при этом остаётся как быстрый способ
-/// увидеть только их, если нужно.
-///
-/// "Сегодня" не является отдельной сущностью — это ВЫЧИСЛЯЕМЫЙ срез уже
-/// существующих Scheduled Meetings (те, у кого есть экземпляр сегодня).
 struct MeetingListView: View {
     @Environment(MeetingStore.self) private var store
+    @Environment(AppSettingsStore.self) private var settings
     @Environment(\.openSettings) private var openSettings
 
     @State private var selection: SidebarSection? = .today
@@ -128,7 +120,7 @@ struct MeetingListView: View {
         case .today:
             combinedList(
                 primary: todayMeetings,
-                primaryEmptyText: "Сегодня встреч нет. Свободный день."
+                primaryEmptyText: "Тишина в календаре. Свободный день."
             )
         case .allMeetings:
             combinedList(
@@ -151,9 +143,6 @@ struct MeetingListView: View {
         }
     }
 
-    /// Список календарных встреч (primary) + закреплённая секция "Быстрый
-    /// доступ" ниже — Quick Rooms видны одновременно с ними на одном
-    /// экране, как в исходном макете.
     private func combinedList(primary: [Meeting], primaryEmptyText: String) -> some View {
         List {
             Section {
@@ -184,7 +173,7 @@ struct MeetingListView: View {
             hasOccurrenceToday: hasOccurrenceToday(meeting),
             isSkippedToday: store.isSkipped(meetingID: meeting.id),
             isAutoJoinCancelledToday: store.isAutoJoinCancelled(meetingID: meeting.id),
-            onJoin: { MeetingLauncher.open(meeting.url) },
+            connectOptions: MeetingLauncher.connectOptions(for: meeting, telemostMode: settings.telemostConnectionMode),
             onCopy: { copy(meeting) },
             onToggleEnabled: { store.setEnabled(id: meeting.id, enabled: $0) },
             onToggleSkipToday: { store.toggleSkip(meetingID: meeting.id) },
@@ -230,7 +219,10 @@ private struct MeetingRow: View {
     let hasOccurrenceToday: Bool
     let isSkippedToday: Bool
     let isAutoJoinCancelledToday: Bool
-    let onJoin: () -> Void
+    /// Одна или две кнопки подключения — вторая появляется только для
+    /// встреч Яндекс Телемоста в режиме "оба варианта", когда десктопное
+    /// приложение доступно (см. `MeetingLauncher.connectOptions`).
+    let connectOptions: [MeetingLauncher.ConnectOption]
     let onCopy: () -> Void
     let onToggleEnabled: (Bool) -> Void
     let onToggleSkipToday: () -> Void
@@ -254,9 +246,13 @@ private struct MeetingRow: View {
             Button(didCopy ? "Скопировано" : "Копировать ссылку", action: onCopy)
                 .buttonStyle(.bordered)
 
-            Button("Подключиться", action: onJoin)
-                .buttonStyle(.borderedProminent)
-                .disabled(!meeting.enabled)
+            ForEach(connectOptions) { option in
+                ConnectOptionButton(
+                    option: option,
+                    isPrimary: option.id == connectOptions.first?.id,
+                    isEnabled: meeting.enabled
+                )
+            }
 
             Toggle(
                 "",
@@ -314,8 +310,37 @@ private struct MeetingRow: View {
     }
 }
 
+/// Одна кнопка подключения. Вынесена в отдельный View, а не тернарный
+/// оператор внутри `.buttonStyle(...)`, — `.borderedProminent` и `.bordered`
+/// разные конкретные типы, и унификация через тернарный оператор в общем
+/// generic-параметре заставляла компилятор превышать разумное время
+/// проверки типов ("unable to type-check in reasonable time").
+private struct ConnectOptionButton: View {
+    let option: MeetingLauncher.ConnectOption
+    let isPrimary: Bool
+    let isEnabled: Bool
+
+    var body: some View {
+        Group {
+            if isPrimary {
+                Button(option.title) {
+                    MeetingLauncher.open(option.url)
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button(option.title) {
+                    MeetingLauncher.open(option.url)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .disabled(!isEnabled)
+    }
+}
+
 #Preview {
     MeetingListView()
         .environment(MeetingStore())
+        .environment(AppSettingsStore())
         .frame(width: 760, height: 480)
 }

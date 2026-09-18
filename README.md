@@ -37,7 +37,7 @@ It's not tied to any single video service. Yandex Telemost is the primary scenar
 ## Building from source
 
 ```bash
-git clone https://github.com/<your-username>/KnockKnockBro.git
+git clone https://github.com/le0hard/KnockKnockBro.git
 cd KnockKnockBro
 open KnockKnockBro.xcodeproj
 ```

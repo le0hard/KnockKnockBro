@@ -3,41 +3,30 @@ import UserNotifications
 import AVFoundation
 
 /// Планирует и обрабатывает системные уведомления-напоминания о встречах.
-///
-/// Ключевое архитектурное решение: для Scheduled Meeting планируются
-/// ТОЛЬКО одноразовые (`repeats: false`) запросы на конкретные предстоящие
-/// даты в ближнем горизонте (`schedulingHorizon`), а не один повторяющийся
-/// триггер на всю серию. Это прямое следствие ограничения UserNotifications:
-/// у repeating-триггера нельзя отменить одно отдельное вхождение без отмены
-/// всей серии — а нам это понадобится для "Пропустить сегодня" и для
-/// Enable/Disable. Идентификатор каждого запроса детерминирован и построен
-/// из (meetingID, дата, reminderID) — именно это позволит точечно отменять
-/// уведомления одного конкретного дня без пересборки всего остального.
 @Observable
 final class NotificationService: NSObject {
 
-    /// Как далеко в будущее планируются уведомления за один проход.
-    /// Выбрано с запасом ниже документированного системного лимита в 64
-    /// pending-уведомления на приложение — с этим горизонтом разумное
-    /// количество встреч и напоминаний не рискует упереться в лимит.
     private let schedulingHorizon: TimeInterval = 48 * 60 * 60
 
     private let center = UNUserNotificationCenter.current()
     private let launcher: MeetingLauncher.Type
 
-    /// Удерживает плеер, пока звук не доиграет — иначе `AVAudioPlayer`
-    /// будет деинициализирован сразу после вызова `play()`.
+    /// Определяет, какая ссылка "приоритетна" для встречи Яндекс Телемоста
+    /// (Desktop/Web/оба) — то же значение, что использует остальной UI.
+    /// Системное уведомление физически не может предложить выбор из двух
+    /// кнопок (место уже занято "Через 5 минут"), поэтому нажатие
+    /// "Подключиться" всегда ведёт по ПРИОРИТЕТНОЙ ссылке — согласованно
+    /// с тем, что делает Auto Join при автоматическом срабатывании.
+    private let telemostModeProvider: () -> TelemostConnectionMode
+
     private var audioPlayer: AVAudioPlayer?
 
-    /// `true`, если пользователь разрешил уведомления. `nil` — статус ещё
-    /// не запрошен/не определён.
     private(set) var isAuthorized: Bool?
 
     private static let categoryIdentifier = "MEETING_REMINDER"
     private static let joinActionIdentifier = "JOIN_ACTION"
     private static let snoozeActionIdentifier = "SNOOZE_ACTION"
 
-    /// Ключи `userInfo` для восстановления контекста при обработке нажатия.
     private enum UserInfoKey {
         static let meetingID = "meetingID"
         static let meetingURL = "meetingURL"
@@ -46,22 +35,17 @@ final class NotificationService: NSObject {
         static let soundOption = "soundOption"
     }
 
-    init(launcher: MeetingLauncher.Type = MeetingLauncher.self) {
+    init(
+        launcher: MeetingLauncher.Type = MeetingLauncher.self,
+        telemostModeProvider: @escaping () -> TelemostConnectionMode = { .both }
+    ) {
         self.launcher = launcher
+        self.telemostModeProvider = telemostModeProvider
         super.init()
         center.delegate = self
         registerCategories()
     }
 
-    // MARK: - Authorization
-
-    /// Запрашивает разрешение на показ уведомлений. Безопасно вызывать
-    /// повторно — система сама не показывает диалог дважды, если решение
-    /// уже принято пользователем.
-    ///
-    /// Использует нативный `async`-вариант API вместо completion handler'а
-    /// с вложенным `Task` — это устраняет необходимость в `[weak self]` и
-    /// связанное с ней предупреждение о конкурентном доступе к состоянию.
     @MainActor
     func requestAuthorizationIfNeeded() async {
         do {
@@ -92,17 +76,6 @@ final class NotificationService: NSObject {
         center.setNotificationCategories([category])
     }
 
-    // MARK: - Scheduling
-
-    /// Полностью пересчитывает и переустанавливает pending-уведомления для
-    /// всех переданных встреч на горизонт `schedulingHorizon` от `now`, с
-    /// учётом точечных исключений "Пропустить сегодня".
-    ///
-    /// Стратегия "с нуля": сначала отменяются все текущие pending-запросы,
-    /// затем планируются заново на основе актуального состояния встреч и
-    /// исключений. Для десятков записей это дешевле и надёжнее точечного
-    /// diff'а и исключает рассинхронизацию между тем, что должно быть
-    /// запланировано, и тем, что реально запланировано.
     func rescheduleAll(
         for meetings: [Meeting],
         exceptions: [MeetingOccurrenceException] = [],
@@ -123,11 +96,6 @@ final class NotificationService: NSObject {
 
     private func schedule(reminder: MeetingReminder, for occurrence: MeetingOccurrence, now: Date) {
         let fireDate = occurrence.startDate.addingTimeInterval(-reminder.offsetBeforeStart)
-
-        // Момент напоминания уже в прошлом (например, "за 15 минут" для
-        // встречи, которая начинается через 5 минут после перезапуска
-        // планирования) — такое напоминание не имеет смысла ставить в
-        // очередь, система бы показала его "с опозданием" немедленно.
         guard fireDate > now else { return }
 
         let content = makeContent(meeting: occurrence.meeting, startDate: occurrence.startDate, sound: reminder.sound)
@@ -162,18 +130,11 @@ final class NotificationService: NSObject {
         return formatter
     }()
 
-    /// Детерминированный идентификатор запроса. Использует ту же
-    /// гранулярность дня, что и `MeetingOccurrence.id`, так что уведомления
-    /// одной встречи на один день всегда узнаваемы по префиксу.
     private func requestIdentifier(meetingID: UUID, startDate: Date, reminderID: UUID) -> String {
         let day = Calendar.current.startOfDay(for: startDate)
         return "\(meetingID.uuidString)|\(Int(day.timeIntervalSince1970))|\(reminderID.uuidString)"
     }
 
-    // MARK: - Snooze
-
-    /// Планирует одноразовое напоминание через 5 минут от текущего момента
-    /// — используется action'ом "Через 5 минут" из уведомления.
     private func scheduleSnooze(meetingID: String, meetingName: String, meetingURLString: String, originalStartDate: Date) {
         let content = UNMutableNotificationContent()
         content.title = meetingName
@@ -195,22 +156,8 @@ final class NotificationService: NSObject {
     }
 }
 
-// MARK: - UNUserNotificationCenterDelegate
-
 extension NotificationService: UNUserNotificationCenterDelegate {
 
-    /// Показывать уведомление, даже если приложение сейчас активно и на
-    /// переднем плане — без этого система по умолчанию не показала бы
-    /// alert/sound, если у KnockKnockBro сейчас открыто главное окно.
-    ///
-    /// Кастомный звук на macOS проигрывается САМИМ приложением через
-    /// AVAudioPlayer, читающим файл прямо из бандла — в отличие от
-    /// системного пути `UNNotificationSound(named:)`, это не требует
-    /// записи в защищённую sandbox'ом папку Library/Sounds. Системный
-    /// звук в этом случае подавляется, чтобы не было дублирования;
-    /// `content.sound` (системный звук по умолчанию) остаётся как
-    /// запасной вариант на случай редкого сценария, когда приложение
-    /// не было запущено в момент показа уведомления.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -235,8 +182,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             audioPlayer = player
             player.play()
         } catch {
-            // Не критично — в худшем случае просто не будет звука у этого
-            // конкретного уведомления.
+            // Не критично.
         }
     }
 
@@ -262,9 +208,17 @@ extension NotificationService: UNUserNotificationCenterDelegate {
 
         switch response.actionIdentifier {
         case Self.joinActionIdentifier, UNNotificationDefaultActionIdentifier:
-            // Совпадает и с явным нажатием кнопки "Подключиться", и с
-            // кликом по самому уведомлению (стандартное поведение системы).
-            launcher.open(url)
+            let service = MeetingProviderDetector.detectService(from: url)
+            let meeting = Meeting(
+                id: UUID(uuidString: meetingID) ?? UUID(),
+                name: meetingName,
+                url: url,
+                service: service,
+                type: .quickRoom
+            )
+            let options = launcher.connectOptions(for: meeting, telemostMode: telemostModeProvider())
+            let preferredURL = options.first?.url ?? url
+            launcher.open(preferredURL)
         case Self.snoozeActionIdentifier:
             scheduleSnooze(meetingID: meetingID, meetingName: meetingName, meetingURLString: urlString, originalStartDate: startDate)
         default:
@@ -275,17 +229,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
     }
 }
 
-// MARK: - NotificationSoundOption mapping
-
 private extension NotificationSoundOption {
-    /// Сопоставление пользовательского пресета звука с реальным
-    /// `UNNotificationSound`. Для `.short` этот системный звук — лишь
-    /// ЗАПАСНОЙ вариант на случай, если приложение не было запущено в
-    /// момент показа уведомления; в основном сценарии кастомный звук
-    /// проигрывается вручную через `AVAudioPlayer` в `willPresent`
-    /// (см. `NotificationService`), так как `UNNotificationSound(named:)`
-    /// на macOS требует записи в `Library/Sounds`, что блокирует App
-    /// Sandbox.
     var unNotificationSound: UNNotificationSound? {
         switch self {
         case .system: return .default

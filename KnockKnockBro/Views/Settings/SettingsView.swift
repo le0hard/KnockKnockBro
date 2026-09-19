@@ -2,11 +2,63 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-/// Экран настроек KnockKnockBro, открываемый через нативную SwiftUI
-/// `Settings` сцену.
+/// Категория настроек — левая колонка Settings, в паттерне System Settings.
+private enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
+    case general, autoJoin, videoServices, importExport
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: return "Общие"
+        case .autoJoin: return "Автоподключение"
+        case .videoServices: return "Сервисы видеосвязи"
+        case .importExport: return "Импорт / Экспорт"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .general: return "gearshape.fill"
+        case .autoJoin: return "bolt.fill"
+        case .videoServices: return "video.fill"
+        case .importExport: return "arrow.up.arrow.down.circle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .general: return .gray
+        case .autoJoin: return .orange
+        case .videoServices: return .green
+        case .importExport: return .blue
+        }
+    }
+}
+
+/// Цветной квадрат-иконка категории.
+private struct SettingsCategoryIcon: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(tint.gradient)
+            .frame(width: 26, height: 26)
+            .overlay {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+            }
+    }
+}
+
+/// Экран настроек KnockKnockBro — sidebar-навигация между категориями.
 struct SettingsView: View {
     @Environment(AppSettingsStore.self) private var settings
     @Environment(MeetingStore.self) private var store
+
+    @State private var selectedCategory: SettingsCategory? = .general
 
     @State private var loginItemStatus: LoginItemService.Status = LoginItemService.currentStatus
     @State private var loginItemError: String?
@@ -20,115 +72,22 @@ struct SettingsView: View {
     private static let countdownPresets: [TimeInterval] = [5, 10, 15, 30, 60]
 
     var body: some View {
-        Form {
-            Section("Общие") {
-                Toggle(isOn: Binding(
-                    get: { loginItemStatus == .enabled || loginItemStatus == .requiresApproval },
-                    set: { toggleLoginItem($0) }
-                )) {
-                    Text("Запускать KnockKnockBro при входе в macOS")
-                        .fixedSize(horizontal: false, vertical: true)
+        NavigationSplitView {
+            List(SettingsCategory.allCases, selection: $selectedCategory) { category in
+                Label {
+                    Text(category.title)
+                } icon: {
+                    SettingsCategoryIcon(systemImage: category.systemImage, tint: category.tint)
                 }
-                if loginItemStatus == .requiresApproval {
-                    Text("Подтвердите автозапуск в системных Настройках → Основные → Элементы входа.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let loginItemError {
-                    Text(loginItemError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Toggle(isOn: Binding(
-                    get: { settings.showInMenuBar },
-                    set: { settings.showInMenuBar = $0 }
-                )) {
-                    Text("Показывать KnockKnockBro в строке меню")
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Toggle(isOn: Binding(
-                    get: { settings.openMainWindowOnLaunch },
-                    set: { settings.openMainWindowOnLaunch = $0 }
-                )) {
-                    Text("Открывать главное окно при запуске")
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                .tag(category)
             }
-
-            Section("Автоподключение") {
-                Picker(
-                    "Отсчёт по умолчанию",
-                    selection: Binding(
-                        get: { settings.defaultAutoJoinCountdown },
-                        set: { settings.defaultAutoJoinCountdown = $0 }
-                    )
-                ) {
-                    ForEach(Self.countdownPresets, id: \.self) { seconds in
-                        Text("\(Int(seconds)) секунд").tag(seconds)
-                    }
-                }
-                Text("Применяется ко всем встречам, у которых не задано собственное значение отсчёта.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Section("Сервисы видеосвязи") {
-                Picker(
-                    "Яндекс Телемост",
-                    selection: Binding(
-                        get: { settings.telemostConnectionMode },
-                        set: { settings.telemostConnectionMode = $0 }
-                    )
-                ) {
-                    ForEach(TelemostConnectionMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-            }
-
-            Section("Импорт / Экспорт") {
-                Button("Экспортировать в JSON") {
-                    exportToFile()
-                }
-                Button("Импортировать из файла") {
-                    importFromFile()
-                }
-                if let exportErrorMessage {
-                    Text(exportErrorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4]))
-                    .foregroundStyle(isDropTargeted ? Color.accentColor : Color.secondary.opacity(0.4))
-                    .frame(height: 56)
-                    .overlay {
-                        Text("Перетащите JSON файл сюда")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .dropDestination(for: URL.self) { urls, _ in
-                        guard let url = urls.first(where: { $0.pathExtension.lowercased() == "json" }) else {
-                            importErrorMessage = "Перетащите файл в формате .json."
-                            return false
-                        }
-                        handleImportFile(at: url)
-                        return true
-                    } isTargeted: { targeted in
-                        isDropTargeted = targeted
-                    }
-            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 220)
+        } detail: {
+            categoryContent
+                .navigationTitle(selectedCategory?.title ?? "Настройки")
         }
-        .formStyle(.grouped)
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(minWidth: 620, idealWidth: 620, minHeight: 420, idealHeight: 420)
         .confirmationDialog(
             "Импортировать встречи?",
             isPresented: Binding(
@@ -156,6 +115,150 @@ struct SettingsView: View {
         } message: {
             Text(importErrorMessage ?? "")
         }
+    }
+
+    @ViewBuilder
+    private var categoryContent: some View {
+        switch selectedCategory {
+        case .general:
+            generalSettings
+        case .autoJoin:
+            autoJoinSettings
+        case .videoServices:
+            videoServicesSettings
+        case .importExport:
+            importExportSettings
+        case nil:
+            ContentUnavailableView("Выберите раздел", systemImage: "gearshape")
+        }
+    }
+
+    private var generalSettings: some View {
+        Form {
+            Section("Запуск") {
+                Toggle(isOn: Binding(
+                    get: { loginItemStatus == .enabled || loginItemStatus == .requiresApproval },
+                    set: { toggleLoginItem($0) }
+                )) {
+                    Text("Запускать KnockKnockBro при входе в macOS")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if loginItemStatus == .requiresApproval {
+                    Text("Подтвердите автозапуск в системных Настройках → Основные → Элементы входа.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let loginItemError {
+                    Text(loginItemError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Section("Интерфейс") {
+                Toggle(isOn: Binding(
+                    get: { settings.showInMenuBar },
+                    set: { settings.showInMenuBar = $0 }
+                )) {
+                    Text("Показывать KnockKnockBro в строке меню")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Toggle(isOn: Binding(
+                    get: { settings.openMainWindowOnLaunch },
+                    set: { settings.openMainWindowOnLaunch = $0 }
+                )) {
+                    Text("Открывать главное окно при запуске")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var autoJoinSettings: some View {
+        Form {
+            Section {
+                Picker(
+                    "Отсчёт по умолчанию",
+                    selection: Binding(
+                        get: { settings.defaultAutoJoinCountdown },
+                        set: { settings.defaultAutoJoinCountdown = $0 }
+                    )
+                ) {
+                    ForEach(Self.countdownPresets, id: \.self) { seconds in
+                        Text("\(Int(seconds)) секунд").tag(seconds)
+                    }
+                }
+                Text("Применяется ко всем встречам, у которых не задано собственное значение отсчёта.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var videoServicesSettings: some View {
+        Form {
+            Section("Яндекс Телемост") {
+                Picker(
+                    "Режим подключения",
+                    selection: Binding(
+                        get: { settings.telemostConnectionMode },
+                        set: { settings.telemostConnectionMode = $0 }
+                    )
+                ) {
+                    ForEach(TelemostConnectionMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var importExportSettings: some View {
+        Form {
+            Section {
+                Button("Экспортировать в JSON") {
+                    exportToFile()
+                }
+                Button("Импортировать из файла") {
+                    importFromFile()
+                }
+                if let exportErrorMessage {
+                    Text(exportErrorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Section {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4]))
+                    .foregroundStyle(isDropTargeted ? Color.accentColor : Color.secondary.opacity(0.4))
+                    .frame(height: 56)
+                    .overlay {
+                        Text("Перетащите JSON файл сюда")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .dropDestination(for: URL.self) { urls, _ in
+                        guard let url = urls.first(where: { $0.pathExtension.lowercased() == "json" }) else {
+                            importErrorMessage = "Перетащите файл в формате .json."
+                            return false
+                        }
+                        handleImportFile(at: url)
+                        return true
+                    } isTargeted: { targeted in
+                        isDropTargeted = targeted
+                    }
+            }
+        }
+        .formStyle(.grouped)
     }
 
     private func toggleLoginItem(_ enabled: Bool) {

@@ -61,6 +61,7 @@ struct MeetingListView: View {
                     .badge(count(for: section))
                     .tag(section)
             }
+            .listStyle(.sidebar)
             .navigationTitle("KnockKnockBro")
         } detail: {
             detailContent
@@ -120,18 +121,24 @@ struct MeetingListView: View {
         case .today:
             combinedList(
                 primary: todayMeetings,
-                primaryEmptyText: "Тишина в календаре. Свободный день."
+                emptyIcon: "calendar",
+                emptyTitle: "Тишина в календаре",
+                emptyDescription: "Свободный день."
             )
         case .allMeetings:
             combinedList(
                 primary: scheduledMeetings,
-                primaryEmptyText: "Тишина в календаре. Нажмите «Новая встреча», чтобы это исправить."
+                emptyIcon: "list.bullet",
+                emptyTitle: "Тишина в календаре",
+                emptyDescription: "Нажмите «Новая встреча», чтобы это исправить."
             )
         case .quickRooms:
             List {
                 if quickRooms.isEmpty {
-                    Text("Постоянных комнат/ссылок пока нет.")
-                        .foregroundStyle(.secondary)
+                    ContentUnavailableView(
+                        "Постоянных комнат/ссылок пока нет.",
+                        systemImage: "bolt.fill"
+                    )
                 } else {
                     ForEach(quickRooms) { meeting in
                         meetingRow(for: meeting)
@@ -143,12 +150,20 @@ struct MeetingListView: View {
         }
     }
 
-    private func combinedList(primary: [Meeting], primaryEmptyText: String) -> some View {
+    private func combinedList(
+        primary: [Meeting],
+        emptyIcon: String,
+        emptyTitle: String,
+        emptyDescription: String
+    ) -> some View {
         List {
             Section {
                 if primary.isEmpty {
-                    Text(primaryEmptyText)
-                        .foregroundStyle(.secondary)
+                    ContentUnavailableView(
+                        emptyTitle,
+                        systemImage: emptyIcon,
+                        description: Text(emptyDescription)
+                    )
                 } else {
                     ForEach(primary) { meeting in
                         meetingRow(for: meeting)
@@ -219,9 +234,6 @@ private struct MeetingRow: View {
     let hasOccurrenceToday: Bool
     let isSkippedToday: Bool
     let isAutoJoinCancelledToday: Bool
-    /// Одна или две кнопки подключения — вторая появляется только для
-    /// встреч Яндекс Телемоста в режиме "оба варианта", когда десктопное
-    /// приложение доступно (см. `MeetingLauncher.connectOptions`).
     let connectOptions: [MeetingLauncher.ConnectOption]
     let onCopy: () -> Void
     let onToggleEnabled: (Bool) -> Void
@@ -235,7 +247,7 @@ private struct MeetingRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(meeting.name)
-                    .font(.body)
+                    .font(.headline)
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -248,9 +260,10 @@ private struct MeetingRow: View {
 
             ForEach(connectOptions) { option in
                 ConnectOptionButton(
-                    option: option,
+                    title: option.title,
                     isPrimary: option.id == connectOptions.first?.id,
-                    isEnabled: meeting.enabled
+                    isEnabled: meeting.enabled,
+                    action: { MeetingLauncher.open(option.url) }
                 )
             }
 
@@ -307,34 +320,6 @@ private struct MeetingRow: View {
             recurrence = days.sorted().map(\.shortDisplayName).joined(separator: ", ")
         }
         return "\(time) · \(recurrence)"
-    }
-}
-
-/// Одна кнопка подключения. Вынесена в отдельный View, а не тернарный
-/// оператор внутри `.buttonStyle(...)`, — `.borderedProminent` и `.bordered`
-/// разные конкретные типы, и унификация через тернарный оператор в общем
-/// generic-параметре заставляла компилятор превышать разумное время
-/// проверки типов ("unable to type-check in reasonable time").
-private struct ConnectOptionButton: View {
-    let option: MeetingLauncher.ConnectOption
-    let isPrimary: Bool
-    let isEnabled: Bool
-
-    var body: some View {
-        Group {
-            if isPrimary {
-                Button(option.title) {
-                    MeetingLauncher.open(option.url)
-                }
-                .buttonStyle(.borderedProminent)
-            } else {
-                Button(option.title) {
-                    MeetingLauncher.open(option.url)
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-        .disabled(!isEnabled)
     }
 }
 

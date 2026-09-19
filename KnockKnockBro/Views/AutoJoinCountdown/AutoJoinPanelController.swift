@@ -4,15 +4,11 @@ import SwiftUI
 /// Управляет отдельным плавающим окном (NSPanel) для countdown-панели
 /// Auto Join.
 ///
-/// Независима от главного окна SwiftUI-сцены (`WindowGroup`) — панель
-/// видна, даже если оно закрыто. Это прямое следствие требования "никогда
-/// не открывать встречу без предупреждения" независимо от состояния
-/// остального интерфейса; `.sheet`, привязанный к окну, для этого не
-/// подходил бы.
-///
-/// Стиль `.nonactivatingPanel` позволяет панели стать key window и
-/// показаться поверх остальных окон, не переключая фокус всего
-/// приложения — это менее навязчиво, чем полная активация KnockKnockBro.
+/// `isOpaque = false` + `backgroundColor = .clear` включают настоящую
+/// AppKit-vibrancy: SwiftUI `.regularMaterial` внутри контента сможет
+/// показать то, что находится позади окна (как у Spotlight/системных
+/// уведомлений), а не просто нарисовать полупрозрачный цвет поверх
+/// непрозрачного окна.
 @MainActor
 final class AutoJoinPanelController: NSObject, NSWindowDelegate {
     private var panel: NSPanel?
@@ -21,7 +17,8 @@ final class AutoJoinPanelController: NSObject, NSWindowDelegate {
     func show(
         occurrence: MeetingOccurrence,
         countdown: TimeInterval,
-        onJoinNow: @escaping () -> Void,
+        connectOptions: [MeetingLauncher.ConnectOption],
+        onJoinNow: @escaping (URL) -> Void,
         onCancel: @escaping () -> Void
     ) {
         onCancelHandler = onCancel
@@ -29,6 +26,7 @@ final class AutoJoinPanelController: NSObject, NSWindowDelegate {
         let contentView = AutoJoinCountdownView(
             occurrence: occurrence,
             countdown: countdown,
+            connectOptions: connectOptions,
             onJoinNow: onJoinNow,
             onCancel: onCancel
         )
@@ -41,7 +39,7 @@ final class AutoJoinPanelController: NSObject, NSWindowDelegate {
         }
 
         let newPanel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 220),
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
             styleMask: [.titled, .closable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -54,6 +52,8 @@ final class AutoJoinPanelController: NSObject, NSWindowDelegate {
         newPanel.standardWindowButton(.zoomButton)?.isHidden = true
         newPanel.isReleasedWhenClosed = false
         newPanel.hidesOnDeactivate = false
+        newPanel.isOpaque = false
+        newPanel.backgroundColor = .clear
         newPanel.delegate = self
         newPanel.contentView = hosting
         newPanel.center()
@@ -66,11 +66,8 @@ final class AutoJoinPanelController: NSObject, NSWindowDelegate {
         panel?.orderOut(nil)
     }
 
-    /// Закрытие панели системным крестиком трактуется как "Отмена" — это
-    /// то же самое действие, что и явная кнопка "Отмена", а не отдельное
-    /// недокументированное поведение.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         onCancelHandler?()
-        return false // сами скрываем через hide(), не разрушаем панель насовсем
+        return false
     }
 }

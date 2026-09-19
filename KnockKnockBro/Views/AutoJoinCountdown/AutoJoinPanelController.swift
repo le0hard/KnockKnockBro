@@ -4,8 +4,11 @@ import SwiftUI
 /// Управляет отдельным плавающим окном (NSPanel) для countdown-панели
 /// Auto Join.
 ///
-/// Независима от главного окна SwiftUI-сцены (`WindowGroup`) — панель
-/// видна, даже если оно закрыто.
+/// `isOpaque = false` + `backgroundColor = .clear` включают настоящую
+/// AppKit-vibrancy: SwiftUI `.regularMaterial` внутри контента сможет
+/// показать то, что находится позади окна (как у Spotlight/системных
+/// уведомлений), а не просто нарисовать полупрозрачный цвет поверх
+/// непрозрачного окна.
 @MainActor
 final class AutoJoinPanelController: NSObject, NSWindowDelegate {
     private var panel: NSPanel?
@@ -31,7 +34,6 @@ final class AutoJoinPanelController: NSObject, NSWindowDelegate {
 
         if let panel {
             panel.contentView = hosting
-            panel.setContentSize(NSSize(width: 320, height: panel.frame.height))
             panel.makeKeyAndOrderFront(nil)
             return
         }
@@ -50,6 +52,8 @@ final class AutoJoinPanelController: NSObject, NSWindowDelegate {
         newPanel.standardWindowButton(.zoomButton)?.isHidden = true
         newPanel.isReleasedWhenClosed = false
         newPanel.hidesOnDeactivate = false
+        newPanel.isOpaque = false
+        newPanel.backgroundColor = .clear
         newPanel.delegate = self
         newPanel.contentView = hosting
         newPanel.center()

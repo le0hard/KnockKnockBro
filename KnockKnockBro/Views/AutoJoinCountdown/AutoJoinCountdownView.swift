@@ -60,6 +60,8 @@ struct AutoJoinCountdownView: View {
         }
         .padding(20)
         .frame(width: 320)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onReceive(timer) { newDate in
             now = newDate
         }

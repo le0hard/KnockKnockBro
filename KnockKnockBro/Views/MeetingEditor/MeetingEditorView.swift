@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import Foundation
 
 /// Форма создания и редактирования встречи.
@@ -113,8 +114,21 @@ struct MeetingEditorView: View {
             Form {
                 Section("Основное") {
                     TextField("Название", text: $name)
-                    TextField("https://...", text: $urlText)
-                        .autocorrectionDisabled()
+
+                    HStack {
+                        TextField("https://...", text: $urlText)
+                            .autocorrectionDisabled()
+
+                        Button {
+                            if let clipboardString = NSPasteboard.general.string(forType: .string) {
+                                urlText = clipboardString
+                            }
+                        } label: {
+                            Image(systemName: "doc.on.clipboard")
+                        }
+                        .buttonStyle(.plain)
+                        .help("Вставить ссылку из буфера обмена")
+                    }
 
                     if let service = detectedService {
                         HStack(spacing: 8) {

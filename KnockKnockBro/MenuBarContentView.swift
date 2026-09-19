@@ -3,21 +3,21 @@ import AppKit
 import Combine
 
 /// Контент попапа Menu Bar: ближайшая встреча, встречи на сегодня и
-/// Quick Rooms — с рабочей кнопкой "Подключиться" у каждой записи.
+/// Quick Rooms.
 struct MenuBarContentView: View {
     @Environment(MeetingStore.self) private var store
     @Environment(AppSettingsStore.self) private var settings
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismiss) private var dismiss
     @State private var now = Date()
 
     private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         content(now: now)
-            .frame(width: 280)
-            .background(AppTheme.panelBackground(for: colorScheme))
+            .frame(width: 340)
+            .background(.regularMaterial)
             .onReceive(timer) { newDate in
                 now = newDate
             }
@@ -38,7 +38,7 @@ struct MenuBarContentView: View {
 
         VStack(alignment: .leading, spacing: 0) {
             Text("KnockKnockBro")
-                .font(.headline)
+                .font(.title3.bold())
                 .padding(.horizontal, 12)
                 .padding(.top, 10)
                 .padding(.bottom, 8)
@@ -48,7 +48,7 @@ struct MenuBarContentView: View {
                 sectionHeader(nextOccurrenceSectionTitle(nextOccurrence, now: now, calendar: calendar))
                 occurrenceRow(
                     nextOccurrence,
-                    subtitle: UpcomingMeetingsProvider.relativeTimeDescription(from: now, to: nextOccurrence.startDate)
+                    subtitle: "\(UpcomingMeetingsProvider.relativeTimeDescription(from: now, to: nextOccurrence.startDate)) · \(Self.timeFormatter.string(from: nextOccurrence.startDate))"
                 )
             }
 
@@ -81,7 +81,7 @@ struct MenuBarContentView: View {
             Button {
                 openMainWindow()
             } label: {
-                Text("Открыть KnockKnockBro")
+                Label("Открыть KnockKnockBro", systemImage: "macwindow")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
@@ -92,7 +92,7 @@ struct MenuBarContentView: View {
                 openSettings()
                 NSApp.activate(ignoringOtherApps: true)
             } label: {
-                Text("Настройки")
+                Label("Настройки", systemImage: "gearshape")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
@@ -104,7 +104,7 @@ struct MenuBarContentView: View {
             Button {
                 NSApp.terminate(nil)
             } label: {
-                Text("Выйти")
+                Label("Выйти", systemImage: "power")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
@@ -114,13 +114,24 @@ struct MenuBarContentView: View {
         }
     }
 
+    /// Открывает главное окно и переводит на него фокус, одновременно
+    /// закрывая сам попап Menu Bar — без этого попап оставался бы
+    /// визуально открытым поверх появившегося окна. У `MenuBarExtra` нет
+    /// публичного API "закрыть себя программно", поэтому имитируем
+    /// нажатие Escape — тот же способ, которым AppKit штатно закрывает
+    /// popover-стиль расширений строки меню.
     private func openMainWindow() {
+        dismiss()
+        NSApp.activate(ignoringOtherApps: true)
+
         if let window = NSApp.windows.first(where: { $0.isVisible && $0.styleMask.contains(.titled) }) {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
             window.makeKeyAndOrderFront(nil)
         } else {
             openWindow(id: "main")
         }
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -144,17 +155,18 @@ struct MenuBarContentView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(occurrence.meeting.name)
-                    .font(.body)
+                    .font(.headline)
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             ForEach(connectOptions) { option in
-                Button(option.title) {
-                    MeetingLauncher.open(option.url)
-                }
-                .buttonStyle(.bordered)
+                ConnectOptionButton(
+                    title: option.title,
+                    isPrimary: option.id == connectOptions.first?.id,
+                    action: { MeetingLauncher.open(option.url) }
+                )
                 .controlSize(.small)
             }
         }
@@ -167,13 +179,14 @@ struct MenuBarContentView: View {
         return HStack {
             ServiceIconView(service: meeting.service, size: 22)
             Text(meeting.name)
-                .font(.body)
+                .font(.headline)
             Spacer()
             ForEach(connectOptions) { option in
-                Button(option.title) {
-                    MeetingLauncher.open(option.url)
-                }
-                .buttonStyle(.bordered)
+                ConnectOptionButton(
+                    title: option.title,
+                    isPrimary: option.id == connectOptions.first?.id,
+                    action: { MeetingLauncher.open(option.url) }
+                )
                 .controlSize(.small)
             }
         }

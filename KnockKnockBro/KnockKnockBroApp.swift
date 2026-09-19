@@ -4,14 +4,18 @@ import SwiftUI
 struct KnockKnockBroApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var meetingStore = MeetingStore()
-    @State private var notificationService = NotificationService()
+    @State private var notificationService: NotificationService
     @State private var wakeObserver = WakeObserver()
-    @State private var appSettingsStore = AppSettingsStore()
+    @State private var appSettingsStore: AppSettingsStore
     @State private var autoJoinRuntime = AutoJoinRuntime()
     @State private var isShowingAbout = false
 
     init() {
-        let settingsStore = appSettingsStore
+        let settingsStore = AppSettingsStore()
+        _appSettingsStore = State(initialValue: settingsStore)
+        _notificationService = State(initialValue: NotificationService(
+            telemostModeProvider: { settingsStore.telemostConnectionMode }
+        ))
         appDelegate.shouldOpenMainWindowOnLaunch = { settingsStore.openMainWindowOnLaunch }
     }
 

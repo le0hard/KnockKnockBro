@@ -61,6 +61,7 @@ struct MeetingListView: View {
                     .badge(count(for: section))
                     .tag(section)
             }
+            .listStyle(.sidebar)
             .navigationTitle("KnockKnockBro")
         } detail: {
             detailContent
@@ -120,18 +121,24 @@ struct MeetingListView: View {
         case .today:
             combinedList(
                 primary: todayMeetings,
-                primaryEmptyText: "Тишина в календаре. Свободный день."
+                emptyIcon: "calendar",
+                emptyTitle: "Тишина в календаре",
+                emptyDescription: "Свободный день."
             )
         case .allMeetings:
             combinedList(
                 primary: scheduledMeetings,
-                primaryEmptyText: "Тишина в календаре. Нажмите «Новая встреча», чтобы это исправить."
+                emptyIcon: "list.bullet",
+                emptyTitle: "Тишина в календаре",
+                emptyDescription: "Нажмите «Новая встреча», чтобы это исправить."
             )
         case .quickRooms:
             List {
                 if quickRooms.isEmpty {
-                    Text("Постоянных комнат/ссылок пока нет.")
-                        .foregroundStyle(.secondary)
+                    ContentUnavailableView(
+                        "Постоянных комнат/ссылок пока нет.",
+                        systemImage: "bolt.fill"
+                    )
                 } else {
                     ForEach(quickRooms) { meeting in
                         meetingRow(for: meeting)
@@ -143,12 +150,20 @@ struct MeetingListView: View {
         }
     }
 
-    private func combinedList(primary: [Meeting], primaryEmptyText: String) -> some View {
+    private func combinedList(
+        primary: [Meeting],
+        emptyIcon: String,
+        emptyTitle: String,
+        emptyDescription: String
+    ) -> some View {
         List {
             Section {
                 if primary.isEmpty {
-                    Text(primaryEmptyText)
-                        .foregroundStyle(.secondary)
+                    ContentUnavailableView(
+                        emptyTitle,
+                        systemImage: emptyIcon,
+                        description: Text(emptyDescription)
+                    )
                 } else {
                     ForEach(primary) { meeting in
                         meetingRow(for: meeting)
@@ -232,7 +247,7 @@ private struct MeetingRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(meeting.name)
-                    .font(.body)
+                    .font(.headline)
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -34,6 +34,7 @@ struct KnockKnockBroApp: App {
                         meetingsProvider: { meetingStore.meetings },
                         exceptionsProvider: { meetingStore.exceptions },
                         defaultCountdownProvider: { appSettingsStore.defaultAutoJoinCountdown },
+                        telemostModeProvider: { appSettingsStore.telemostConnectionMode },
                         onCancelRequested: { meetingID, date in
                             meetingStore.cancelAutoJoin(meetingID: meetingID, on: date)
                         }

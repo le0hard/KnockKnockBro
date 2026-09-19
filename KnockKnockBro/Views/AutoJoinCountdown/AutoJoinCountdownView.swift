@@ -2,20 +2,12 @@ import SwiftUI
 import Combine
 import Foundation
 
-/// Контент countdown-панели Auto Join: название встречи, время начала,
-/// прогресс-бар и числовой обратный отсчёт, кнопки "Подключиться сейчас"
-/// и "Отмена".
-///
-/// Считает оставшееся время по wall-clock (`startDate - now`), а не
-/// декрементом — при пропущенном тике (throttling, недолгий сон системы
-/// и т.п.) отображаемое значение остаётся верным, а не "уезжает".
-/// Фактическое открытие URL при достижении нуля выполняется НЕ здесь, а в
-/// `AutoJoinRuntime` — эта панель только отображает состояние.
+/// Контент countdown-панели Auto Join.
 struct AutoJoinCountdownView: View {
-    @Environment(\.colorScheme) private var colorScheme
     let occurrence: MeetingOccurrence
     let countdown: TimeInterval
-    let onJoinNow: () -> Void
+    let connectOptions: [MeetingLauncher.ConnectOption]
+    let onJoinNow: (URL) -> Void
     let onCancel: () -> Void
 
     @State private var now = Date()
@@ -52,16 +44,22 @@ struct AutoJoinCountdownView: View {
                     .monospacedDigit()
             }
 
-            HStack {
-                Button("Подключиться сейчас", action: onJoinNow)
-                    .buttonStyle(.borderedProminent)
+            VStack(spacing: 8) {
+                HStack {
+                    ForEach(connectOptions) { option in
+                        ConnectOptionButton(
+                            title: "\(option.title) сейчас",
+                            isPrimary: option.id == connectOptions.first?.id,
+                            action: { onJoinNow(option.url) }
+                        )
+                    }
+                }
                 Button("Отмена", action: onCancel)
                     .buttonStyle(.bordered)
             }
         }
         .padding(20)
-        .frame(width: 300)
-        .background(AppTheme.panelBackground(for: colorScheme))
+        .frame(width: 320)
         .onReceive(timer) { newDate in
             now = newDate
         }
@@ -93,7 +91,11 @@ struct AutoJoinCountdownView: View {
             startDate: Date().addingTimeInterval(10)
         ),
         countdown: 10,
-        onJoinNow: {},
+        connectOptions: [
+            MeetingLauncher.ConnectOption(title: "Подключиться", url: URL(string: "telemost://https//telemost.yandex.ru/j/1")!),
+            MeetingLauncher.ConnectOption(title: "Подключиться web", url: URL(string: "https://telemost.yandex.ru/j/1")!),
+        ],
+        onJoinNow: { _ in },
         onCancel: {}
     )
 }

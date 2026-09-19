@@ -219,9 +219,6 @@ private struct MeetingRow: View {
     let hasOccurrenceToday: Bool
     let isSkippedToday: Bool
     let isAutoJoinCancelledToday: Bool
-    /// Одна или две кнопки подключения — вторая появляется только для
-    /// встреч Яндекс Телемоста в режиме "оба варианта", когда десктопное
-    /// приложение доступно (см. `MeetingLauncher.connectOptions`).
     let connectOptions: [MeetingLauncher.ConnectOption]
     let onCopy: () -> Void
     let onToggleEnabled: (Bool) -> Void
@@ -248,9 +245,10 @@ private struct MeetingRow: View {
 
             ForEach(connectOptions) { option in
                 ConnectOptionButton(
-                    option: option,
+                    title: option.title,
                     isPrimary: option.id == connectOptions.first?.id,
-                    isEnabled: meeting.enabled
+                    isEnabled: meeting.enabled,
+                    action: { MeetingLauncher.open(option.url) }
                 )
             }
 
@@ -307,34 +305,6 @@ private struct MeetingRow: View {
             recurrence = days.sorted().map(\.shortDisplayName).joined(separator: ", ")
         }
         return "\(time) · \(recurrence)"
-    }
-}
-
-/// Одна кнопка подключения. Вынесена в отдельный View, а не тернарный
-/// оператор внутри `.buttonStyle(...)`, — `.borderedProminent` и `.bordered`
-/// разные конкретные типы, и унификация через тернарный оператор в общем
-/// generic-параметре заставляла компилятор превышать разумное время
-/// проверки типов ("unable to type-check in reasonable time").
-private struct ConnectOptionButton: View {
-    let option: MeetingLauncher.ConnectOption
-    let isPrimary: Bool
-    let isEnabled: Bool
-
-    var body: some View {
-        Group {
-            if isPrimary {
-                Button(option.title) {
-                    MeetingLauncher.open(option.url)
-                }
-                .buttonStyle(.borderedProminent)
-            } else {
-                Button(option.title) {
-                    MeetingLauncher.open(option.url)
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-        .disabled(!isEnabled)
     }
 }
 

@@ -24,6 +24,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		5BF6D705305F220300BC927A /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CHANGELOG.md; sourceTree = "<group>"; };
+		5BF6D706305F220300BC927A /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		5BF6D707305F220300BC927A /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		5BF6D708305F220300BC927A /* README.ru.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.ru.md; sourceTree = "<group>"; };
 		5BF7D5ED305AA96200853173 /* KnockKnockBro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KnockKnockBro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5BF7D5FA305AA96300853173 /* KnockKnockBroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KnockKnockBroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5BF7D604305AA96300853173 /* KnockKnockBroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KnockKnockBroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -75,6 +79,10 @@
 		5BF7D5E4305AA96200853173 = {
 			isa = PBXGroup;
 			children = (
+				5BF6D705305F220300BC927A /* CHANGELOG.md */,
+				5BF6D706305F220300BC927A /* LICENSE */,
+				5BF6D707305F220300BC927A /* README.md */,
+				5BF6D708305F220300BC927A /* README.ru.md */,
 				5BF7D5EF305AA96200853173 /* KnockKnockBro */,
 				5BF7D5FD305AA96300853173 /* KnockKnockBroTests */,
 				5BF7D607305AA96300853173 /* KnockKnockBroUITests */,

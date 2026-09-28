@@ -20,7 +20,7 @@ enum Recurrence: Equatable, Hashable {
     /// `autoDelete` — удалить встречу автоматически через час после
     /// начала (см. `MeetingStore.deleteExpiredOneTimeMeetings`). Без
     /// автоудаления прошедшая разовая встреча остаётся в списке, в
-    /// разделе "Прошедшие". Флаг живёт внутри этого case, а не в
+    /// разделе "Архив". Флаг живёт внутри этого case, а не в
     /// `MeetingSchedule`, потому что для повторяющихся встреч он не имеет
     /// смысла.
     case once(CalendarDay, autoDelete: Bool)

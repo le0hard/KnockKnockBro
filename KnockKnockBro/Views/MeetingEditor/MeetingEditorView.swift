@@ -22,6 +22,7 @@ struct MeetingEditorView: View {
     @State private var scheduleMode: ScheduleMode
     @State private var oneTimeDate: Date
     @State private var autoDeleteAfterMeeting: Bool
+    @State private var isShowingDatePopover = false
     @State private var recurrenceKind: RecurrenceKind
     @State private var weeklyDay: Weekday
     @State private var customDays: Set<Weekday>
@@ -174,7 +175,7 @@ struct MeetingEditorView: View {
                         .pickerStyle(.segmented)
 
                         if scheduleMode == .once {
-                            DatePicker("Дата", selection: $oneTimeDate, displayedComponents: .date)
+                            oneTimeDateRow
                         }
 
                         DatePicker("Время", selection: timeBinding, displayedComponents: .hourAndMinute)
@@ -184,7 +185,7 @@ struct MeetingEditorView: View {
                                 Text("Удалить после встречи")
                                 Text(autoDeleteAfterMeeting
                                      ? "Встреча удалится автоматически через час после начала."
-                                     : "После своей даты встреча переместится в «Прошедшие».")
+                                     : "После своей даты встреча переместится в «Архив».")
                             }
                         }
 
@@ -274,6 +275,42 @@ struct MeetingEditorView: View {
             .padding(16)
         }
         .frame(width: 480)
+    }
+
+    // MARK: - One-time date
+
+    /// Поле даты разовой встречи: кнопка с датой, по клику — календарь в
+    /// popover. Стандартный `DatePicker` с календарём на macOS не
+    /// закрывается после выбора дня, поэтому popover закрываем сами, как
+    /// только выбран день.
+    private var oneTimeDateRow: some View {
+        LabeledContent("Дата") {
+            Button {
+                isShowingDatePopover.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Text(CalendarDay(date: oneTimeDate).displayString())
+                    Image(systemName: "calendar")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .popover(isPresented: $isShowingDatePopover, arrowEdge: .bottom) {
+                DatePicker("", selection: $oneTimeDate, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .padding(12)
+                    .onChange(of: oneTimeDate) { oldValue, newValue in
+                        // Закрываем, только когда кликнули по дню. Если
+                        // календарь при перелистывании месяца сдвигает
+                        // выбранную дату, число месяца при этом остаётся
+                        // тем же — такой сдвиг popover не закрывает.
+                        let calendar = Calendar.current
+                        if calendar.component(.day, from: oldValue) != calendar.component(.day, from: newValue) {
+                            isShowingDatePopover = false
+                        }
+                    }
+            }
+        }
     }
 
     // MARK: - Derived state

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Раздел sidebar главного окна.
 private enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
-    case today, allMeetings, quickRooms
+    case today, allMeetings, quickRooms, archive
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ private enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         case .today: return "Сегодня"
         case .allMeetings: return "Все встречи"
         case .quickRooms: return "Быстрый доступ"
+        case .archive: return "Архив"
         }
     }
 
@@ -19,6 +20,7 @@ private enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         case .today: return "calendar"
         case .allMeetings: return "list.bullet"
         case .quickRooms: return "bolt.fill"
+        case .archive: return "archivebox"
         }
     }
 }
@@ -35,7 +37,6 @@ struct MeetingListView: View {
     @State private var editingMeeting: Meeting?
     @State private var meetingPendingDeletion: Meeting?
     @State private var copiedMeetingID: UUID?
-    @State private var isPastSectionExpanded = false
 
     /// Все запланированные встречи: сначала повторяющиеся по времени
     /// начала, затем разовые по дате и времени.
@@ -52,7 +53,8 @@ struct MeetingListView: View {
         return scheduledMeetings.filter { !$0.isPastOneTimeMeeting(now: now) }
     }
 
-    /// Разовые встречи, чей день уже прошёл, — от самой свежей к старой.
+    /// Разовые встречи, чей день уже прошёл, — раздел "Архив", от самой
+    /// свежей к старой.
     private var pastOneTimeMeetings: [Meeting] {
         let now = Date()
         return Array(scheduledMeetings
@@ -142,7 +144,6 @@ struct MeetingListView: View {
         case .allMeetings:
             combinedList(
                 primary: activeScheduledMeetings,
-                past: pastOneTimeMeetings,
                 emptyIcon: "list.bullet",
                 emptyTitle: "Тишина в календаре",
                 emptyDescription: "Нажмите «Новая встреча», чтобы это исправить."
@@ -160,6 +161,20 @@ struct MeetingListView: View {
                     }
                 }
             }
+        case .archive:
+            List {
+                if pastOneTimeMeetings.isEmpty {
+                    ContentUnavailableView(
+                        "Архив пуст",
+                        systemImage: "archivebox",
+                        description: Text("Здесь окажутся разовые встречи, когда их день пройдёт.")
+                    )
+                } else {
+                    ForEach(pastOneTimeMeetings) { meeting in
+                        meetingRow(for: meeting)
+                    }
+                }
+            }
         case nil:
             ContentUnavailableView("Выберите раздел", systemImage: "sidebar.left")
         }
@@ -167,7 +182,6 @@ struct MeetingListView: View {
 
     private func combinedList(
         primary: [Meeting],
-        past: [Meeting] = [],
         emptyIcon: String,
         emptyTitle: String,
         emptyDescription: String
@@ -190,14 +204,6 @@ struct MeetingListView: View {
             if !quickRooms.isEmpty {
                 Section("Быстрый доступ") {
                     ForEach(quickRooms) { meeting in
-                        meetingRow(for: meeting)
-                    }
-                }
-            }
-
-            if !past.isEmpty {
-                Section("Прошедшие (\(past.count))", isExpanded: $isPastSectionExpanded) {
-                    ForEach(past) { meeting in
                         meetingRow(for: meeting)
                     }
                 }
@@ -226,6 +232,7 @@ struct MeetingListView: View {
         case .today: return todayMeetings.count
         case .allMeetings: return activeScheduledMeetings.count
         case .quickRooms: return quickRooms.count
+        case .archive: return pastOneTimeMeetings.count
         }
     }
 

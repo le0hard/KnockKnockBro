@@ -46,7 +46,23 @@ struct StorageFile: Codable {
 final class MeetingStore {
 
     /// Текущая версия формата файла на диске и формата экспорта.
-    static let currentFormatVersion = 1
+    ///
+    /// История:
+    /// - 1 — v0.1–v0.3.
+    /// - 2 — v0.4.0: разовые встречи (`recurrence.type == "once"`).
+    ///   Версия поднята, чтобы старые версии KnockKnockBro при импорте
+    ///   явно отклоняли файл с понятным сообщением, а не падали на
+    ///   неизвестном типе расписания.
+    static let currentFormatVersion = 2
+
+    /// Версии формата, которые текущая версия приложения умеет читать.
+    /// Формат 2 — строгое надмножество формата 1, поэтому файлы версии 1
+    /// читаются без преобразований.
+    static let supportedFormatVersions: ClosedRange<Int> = 1...2
+
+    /// Через сколько после начала разовая встреча с автоудалением
+    /// удаляется из списка.
+    static let oneTimeAutoDeleteDelay: TimeInterval = 60 * 60
 
     /// Текущий список встреч. UI наблюдает это свойство напрямую благодаря
     /// `@Observable` — без Combine-подписок.
@@ -133,6 +149,33 @@ final class MeetingStore {
         meetings = newMeetings
         exceptions = newExceptions
         persist()
+    }
+
+    // MARK: - Разовые встречи: автоудаление
+
+    /// Удаляет разовые встречи с включённым автоудалением, с начала которых
+    /// прошло не меньше `oneTimeAutoDeleteDelay` (час). Вместе со встречей
+    /// удаляются и её исключения — как в `delete(id:)`.
+    ///
+    /// Вызывается периодически `OneTimeMeetingCleaner`. Файл на диске
+    /// перезаписывается только если действительно что-то удалено.
+    ///
+    /// - Returns: количество удалённых встреч.
+    @discardableResult
+    func deleteExpiredOneTimeMeetings(now: Date = Date(), calendar: Calendar = .current) -> Int {
+        let expiredIDs = Set(meetings.compactMap { meeting -> UUID? in
+            guard case .once(_, let autoDelete)? = meeting.schedule?.recurrence, autoDelete,
+                  let start = meeting.oneTimeStartDate(calendar: calendar),
+                  start.addingTimeInterval(Self.oneTimeAutoDeleteDelay) <= now
+            else { return nil }
+            return meeting.id
+        })
+        guard !expiredIDs.isEmpty else { return 0 }
+
+        meetings.removeAll { expiredIDs.contains($0.id) }
+        exceptions.removeAll { expiredIDs.contains($0.meetingID) }
+        persist()
+        return expiredIDs.count
     }
 
     // MARK: - Skip Today

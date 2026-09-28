@@ -16,6 +16,8 @@ It's not tied to any single video service. Yandex Telemost is the primary scenar
 
 - **Quick Rooms** — a permanent link for ad-hoc calls, always one click away.
 - **Scheduled Meetings** — recurring meetings: daily, weekdays, weekly, or a custom set of weekdays.
+- **One-time meetings** — a meeting on a specific date, optionally auto-deleted afterwards; past ones move to the Archive.
+- **Calendar** — a month view with meeting days marked and the agenda of the selected day, available from the menu bar and the main window.
 - **Automatic service detection** — Yandex Telemost, Google Meet, Zoom, Microsoft Teams, and a graceful fallback for anything else.
 - **Multiple independent reminders** per meeting, each with its own offset and sound.
 - **Join / Snooze right from the notification** — no need to switch to the app.
@@ -24,7 +26,7 @@ It's not tied to any single video service. Yandex Telemost is the primary scenar
 - **Auto Join** — a visible, cancellable countdown panel before the app opens the meeting URL automatically. Never opens anything without warning.
 - **Sleep/Wake aware** — if your Mac was asleep when a meeting started, KnockKnockBro won't silently launch it after the fact; it asks first.
 - **Menu bar first** — live countdown to the next meeting right in the menu bar, with a quick popover for today's schedule and Quick Rooms.
-- **Sidebar main window** — Today / All Meetings / Quick Access, all backed by the same underlying data.
+- **Sidebar main window** — Today / All Meetings / Quick Access / Archive, all backed by the same underlying data.
 - **JSON export & import** — a single human-readable file, versioned, with drag & drop support and full validation before anything is applied.
 - **Login at startup** — via the modern `SMAppService` API, no legacy login-item hacks.
 - **100% local** — no account, no backend, no telemetry. Everything lives in a JSON file in your own `Application Support` folder.

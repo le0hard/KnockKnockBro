@@ -138,6 +138,32 @@ final class UpcomingMeetingsProviderTests: XCTestCase {
         XCTAssertEqual(UpcomingMeetingsProvider.relativeTimeDescription(from: now, to: target), "через 4 ч 42 мин")
     }
     
+    // MARK: - timeColumnCaption (колонка времени в попапе)
+
+    func testTimeColumnCaptionForFutureMatchesRelativeDescription() {
+        let now = Date()
+        let target = now.addingTimeInterval(12 * 60)
+        XCTAssertEqual(UpcomingMeetingsProvider.timeColumnCaption(from: now, to: target), "через 12 мин")
+    }
+
+    func testTimeColumnCaptionForPastMinutes() {
+        let now = Date()
+        let target = now.addingTimeInterval(-5 * 60)
+        XCTAssertEqual(UpcomingMeetingsProvider.timeColumnCaption(from: now, to: target), "5 мин назад")
+    }
+
+    func testTimeColumnCaptionForPastHoursAndMinutes() {
+        let now = Date()
+        let target = now.addingTimeInterval(-(2 * 60 * 60 + 15 * 60))
+        XCTAssertEqual(UpcomingMeetingsProvider.timeColumnCaption(from: now, to: target), "2 ч 15 мин назад")
+    }
+
+    func testTimeColumnCaptionJustStarted() {
+        let now = Date()
+        let target = now.addingTimeInterval(-20)
+        XCTAssertEqual(UpcomingMeetingsProvider.timeColumnCaption(from: now, to: target), "только что")
+    }
+
     // MARK: - nextOccurrenceToday (для лейбла Menu Bar)
 
     func testNextOccurrenceTodayIsNilWhenOnlyRemainingIsTomorrow() {

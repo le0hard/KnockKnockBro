@@ -95,4 +95,30 @@ struct UpcomingMeetingsProvider {
             return "через \(hours) ч \(minutes) мин"
         }
     }
+
+    /// Подпись под крупным временем в колонке времени попапа Menu Bar.
+    ///
+    /// Для будущей встречи — то же, что `relativeTimeDescription`
+    /// ("через 12 мин"). Для уже начавшейся (сегодняшние встречи в
+    /// попапе показываются и после начала) — сколько времени прошло
+    /// ("5 мин назад", "2 ч назад"): длительность встречи не хранится,
+    /// поэтому "идёт/закончилась" определить нельзя.
+    static func timeColumnCaption(from now: Date, to date: Date) -> String {
+        guard date < now else {
+            return relativeTimeDescription(from: now, to: date)
+        }
+        let totalMinutes = Int(now.timeIntervalSince(date) / 60)
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+
+        if hours == 0 && minutes == 0 {
+            return "только что"
+        } else if hours == 0 {
+            return "\(minutes) мин назад"
+        } else if minutes == 0 {
+            return "\(hours) ч назад"
+        } else {
+            return "\(hours) ч \(minutes) мин назад"
+        }
+    }
 }

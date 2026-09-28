@@ -31,6 +31,7 @@ struct MeetingListView: View {
     @Environment(MeetingStore.self) private var store
     @Environment(AppSettingsStore.self) private var settings
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
     @State private var selection: SidebarSection? = .today
     @State private var isCreatingMeeting = false
@@ -83,6 +84,14 @@ struct MeetingListView: View {
             detailContent
                 .navigationTitle(selection?.title ?? "KnockKnockBro")
                 .toolbar {
+                    ToolbarItem {
+                        Button {
+                            CalendarWindow.show(using: openWindow)
+                        } label: {
+                            Label("Календарь", systemImage: "calendar")
+                        }
+                        .help("Календарь")
+                    }
                     ToolbarItem {
                         Button {
                             isCreatingMeeting = true

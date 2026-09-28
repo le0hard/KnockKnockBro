@@ -81,6 +81,17 @@ struct KnockKnockBroApp: App {
             }
         }
 
+        // Окно "Календарь" (v0.4.0). `Window`, а не `WindowGroup` — окно
+        // всегда одно: повторное открытие из попапа выводит на передний
+        // план уже открытое, а не создаёт второе.
+        Window("Календарь", id: CalendarWindow.id) {
+            CalendarWindowView()
+                .environment(meetingStore)
+                .environment(appSettingsStore)
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+
         Settings {
             SettingsView()
                 .environment(appSettingsStore)

@@ -43,11 +43,22 @@ struct MenuBarContentView: View {
         let quickRooms = store.meetings.filter { $0.type == .quickRoom && $0.enabled }
 
         VStack(alignment: .leading, spacing: 0) {
-            Text("KnockKnockBro")
-                .font(.title3.bold())
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 8)
+            HStack {
+                Text("KnockKnockBro")
+                    .font(.title3.bold())
+                Spacer()
+                Button {
+                    openCalendarWindow()
+                } label: {
+                    Image(systemName: "calendar")
+                        .font(.title3)
+                }
+                .buttonStyle(.borderless)
+                .help("Календарь")
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
 
             if let nextOccurrence {
                 Divider()
@@ -137,6 +148,13 @@ struct MenuBarContentView: View {
         }
     }
 
+    /// Открывает окно "Календарь" (или выводит на передний план уже
+    /// открытое, разворачивая из Dock при необходимости).
+    private func openCalendarWindow() {
+        dismiss()
+        CalendarWindow.show(using: openWindow)
+    }
+
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.caption)
@@ -165,7 +183,7 @@ struct MenuBarContentView: View {
         let hasStarted = occurrence.startDate <= now
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 0) {
-                Text(Self.timeFormatter.string(from: occurrence.startDate))
+                BlinkingClockText(date: occurrence.startDate)
                     .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(hasStarted ? .secondary : .primary)
@@ -227,11 +245,6 @@ struct MenuBarContentView: View {
     /// время и названия встреч по вертикали между строками.
     private static let timeColumnWidth: CGFloat = 84
 
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
 }
 
 #Preview {

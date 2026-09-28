@@ -16,7 +16,13 @@ struct MenuBarContentView: View {
 
     var body: some View {
         content(now: now)
-            .frame(width: 340)
+            // Ширина по содержимому: окно `MenuBarExtra(.window)` берёт
+            // идеальный размер контента, а гибкий frame ограничивает его
+            // диапазоном. Если всё помещается — попап узкий (не меньше
+            // `minPopupWidth`); длинные названия / две кнопки Телемоста
+            // расширяют его, но не больше `maxPopupWidth` — дальше
+            // название переносится на вторую строку.
+            .frame(minWidth: Self.minPopupWidth, maxWidth: Self.maxPopupWidth)
             .background(.regularMaterial)
             .onReceive(timer) { newDate in
                 now = newDate
@@ -46,10 +52,7 @@ struct MenuBarContentView: View {
             if let nextOccurrence {
                 Divider()
                 sectionHeader(nextOccurrenceSectionTitle(nextOccurrence, now: now, calendar: calendar))
-                occurrenceRow(
-                    nextOccurrence,
-                    subtitle: "\(UpcomingMeetingsProvider.relativeTimeDescription(from: now, to: nextOccurrence.startDate)) · \(Self.timeFormatter.string(from: nextOccurrence.startDate))"
-                )
+                occurrenceRow(nextOccurrence, now: now)
             }
 
             if !isTodaySectionRedundant {
@@ -63,7 +66,7 @@ struct MenuBarContentView: View {
                         .padding(.vertical, 6)
                 } else {
                     ForEach(remainingTodayOccurrences) { occurrence in
-                        occurrenceRow(occurrence, subtitle: Self.timeFormatter.string(from: occurrence.startDate))
+                        occurrenceRow(occurrence, now: now)
                     }
                 }
             }
@@ -144,23 +147,42 @@ struct MenuBarContentView: View {
     }
 
     private func nextOccurrenceSectionTitle(_ occurrence: MeetingOccurrence, now: Date, calendar: Calendar) -> String {
-        let isToday = calendar.isDate(occurrence.startDate, inSameDayAs: now)
-        return isToday ? "Следующая встреча · Сегодня" : "Следующая встреча"
+        if calendar.isDate(occurrence.startDate, inSameDayAs: now) {
+            return "Следующая встреча · Сегодня"
+        }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+           calendar.isDate(occurrence.startDate, inSameDayAs: tomorrow) {
+            return "Следующая встреча · Завтра"
+        }
+        return "Следующая встреча"
     }
 
-    private func occurrenceRow(_ occurrence: MeetingOccurrence, subtitle: String) -> some View {
+    /// Строка запланированной встречи: слева выровненная колонка времени
+    /// (крупное HH:MM и под ним — сколько осталось/прошло), затем иконка
+    /// сервиса, название и кнопки подключения.
+    private func occurrenceRow(_ occurrence: MeetingOccurrence, now: Date) -> some View {
         let connectOptions = MeetingLauncher.connectOptions(for: occurrence.meeting, telemostMode: settings.telemostConnectionMode)
-        return HStack {
-            ServiceIconView(service: occurrence.meeting.service, size: 22)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(occurrence.meeting.name)
-                    .font(.headline)
-                Text(subtitle)
+        let hasStarted = occurrence.startDate <= now
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(Self.timeFormatter.string(from: occurrence.startDate))
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(hasStarted ? .secondary : .primary)
+                Text(UpcomingMeetingsProvider.timeColumnCaption(from: now, to: occurrence.startDate))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            Spacer()
+            .frame(width: Self.timeColumnWidth, alignment: .leading)
+
+            ServiceIconView(service: occurrence.meeting.service, size: 22)
+
+            Text(occurrence.meeting.name)
+                .font(.headline)
+                .lineLimit(2)
+            Spacer(minLength: 8)
             ForEach(connectOptions) { option in
                 ConnectOptionButton(
                     title: option.title,
@@ -193,6 +215,17 @@ struct MenuBarContentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
     }
+
+    /// Минимальная ширина попапа — прежняя фиксированная ширина до v0.4.0.
+    private static let minPopupWidth: CGFloat = 340
+
+    /// Максимальная ширина попапа: до неё попап расширяется, только если
+    /// содержимое (колонка времени + название + кнопки) не помещается.
+    private static let maxPopupWidth: CGFloat = 460
+
+    /// Фиксированная ширина колонки времени — именно она выравнивает
+    /// время и названия встреч по вертикали между строками.
+    private static let timeColumnWidth: CGFloat = 84
 
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()

@@ -55,3 +55,27 @@ struct Meeting: Identifiable, Codable, Equatable, Hashable {
         self.autoJoin = autoJoin
     }
 }
+
+// MARK: - Разовые встречи (v0.4.0)
+
+extension Meeting {
+    /// День разовой встречи; `nil` для повторяющихся встреч и Quick Room.
+    var oneTimeDay: CalendarDay? {
+        schedule?.recurrence.oneTimeDay
+    }
+
+    /// Момент начала разовой встречи; `nil` для остальных.
+    func oneTimeStartDate(calendar: Calendar = .current) -> Date? {
+        guard let schedule, let day = oneTimeDay else { return nil }
+        return day.date(hour: schedule.hour, minute: schedule.minute, calendar: calendar)
+    }
+
+    /// Разовая встреча, чей день уже прошёл (раньше сегодняшнего). Такие
+    /// встречи показываются в главном окне в разделе "Прошедшие". Встреча,
+    /// прошедшая сегодня, остаётся среди сегодняшних до конца дня — так же,
+    /// как сегодняшние экземпляры повторяющихся встреч.
+    func isPastOneTimeMeeting(now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard let day = oneTimeDay else { return false }
+        return day < CalendarDay(date: now, calendar: calendar)
+    }
+}

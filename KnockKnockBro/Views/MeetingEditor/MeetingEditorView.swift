@@ -19,6 +19,9 @@ struct MeetingEditorView: View {
     @State private var enabled: Bool
     @State private var hour: Int
     @State private var minute: Int
+    @State private var scheduleMode: ScheduleMode
+    @State private var oneTimeDate: Date
+    @State private var autoDeleteAfterMeeting: Bool
     @State private var recurrenceKind: RecurrenceKind
     @State private var weeklyDay: Weekday
     @State private var customDays: Set<Weekday>
@@ -37,6 +40,9 @@ struct MeetingEditorView: View {
         _enabled = State(initialValue: true)
         _hour = State(initialValue: 10)
         _minute = State(initialValue: 0)
+        _scheduleMode = State(initialValue: .recurring)
+        _oneTimeDate = State(initialValue: Date())
+        _autoDeleteAfterMeeting = State(initialValue: false)
         _recurrenceKind = State(initialValue: .daily)
         _weeklyDay = State(initialValue: .monday)
         _customDays = State(initialValue: [])
@@ -58,6 +64,9 @@ struct MeetingEditorView: View {
         _minute = State(initialValue: meeting.schedule?.minute ?? 0)
         _reminders = State(initialValue: meeting.reminders)
         _validationError = State(initialValue: nil)
+        _scheduleMode = State(initialValue: .recurring)
+        _oneTimeDate = State(initialValue: Date())
+        _autoDeleteAfterMeeting = State(initialValue: false)
 
         if let recurrence = meeting.schedule?.recurrence {
             switch recurrence {
@@ -77,6 +86,13 @@ struct MeetingEditorView: View {
                 _recurrenceKind = State(initialValue: .customDays)
                 _weeklyDay = State(initialValue: .monday)
                 _customDays = State(initialValue: days)
+            case .once(let day, let autoDelete):
+                _scheduleMode = State(initialValue: .once)
+                _oneTimeDate = State(initialValue: day.startOfDay() ?? Date())
+                _autoDeleteAfterMeeting = State(initialValue: autoDelete)
+                _recurrenceKind = State(initialValue: .daily)
+                _weeklyDay = State(initialValue: .monday)
+                _customDays = State(initialValue: [])
             }
         } else {
             _recurrenceKind = State(initialValue: .daily)
@@ -151,15 +167,36 @@ struct MeetingEditorView: View {
 
                 if meetingType == .scheduled {
                     Section("Расписание") {
+                        Picker("Когда", selection: $scheduleMode) {
+                            Text("Повторяется").tag(ScheduleMode.recurring)
+                            Text("Один раз").tag(ScheduleMode.once)
+                        }
+                        .pickerStyle(.segmented)
+
+                        if scheduleMode == .once {
+                            DatePicker("Дата", selection: $oneTimeDate, displayedComponents: .date)
+                        }
+
                         DatePicker("Время", selection: timeBinding, displayedComponents: .hourAndMinute)
 
-                        Picker("Повторение", selection: $recurrenceKind) {
-                            ForEach(RecurrenceKind.allCases) { kind in
-                                Text(kind.displayName).tag(kind)
+                        if scheduleMode == .once {
+                            Toggle(isOn: $autoDeleteAfterMeeting) {
+                                Text("Удалить после встречи")
+                                Text(autoDeleteAfterMeeting
+                                     ? "Встреча удалится автоматически через час после начала."
+                                     : "После своей даты встреча переместится в «Прошедшие».")
                             }
                         }
 
-                        if recurrenceKind == .weekly {
+                        if scheduleMode == .recurring {
+                            Picker("Повторение", selection: $recurrenceKind) {
+                                ForEach(RecurrenceKind.allCases) { kind in
+                                    Text(kind.displayName).tag(kind)
+                                }
+                            }
+                        }
+
+                        if scheduleMode == .recurring && recurrenceKind == .weekly {
                             Picker("День недели", selection: $weeklyDay) {
                                 ForEach(Weekday.mondayFirstOrder) { day in
                                     Text(day.shortDisplayName).tag(day)
@@ -167,7 +204,7 @@ struct MeetingEditorView: View {
                             }
                         }
 
-                        if recurrenceKind == .customDays {
+                        if scheduleMode == .recurring && recurrenceKind == .customDays {
                             WeekdaySelector(selectedDays: $customDays)
                         }
                     }
@@ -299,19 +336,35 @@ struct MeetingEditorView: View {
 
         if meetingType == .scheduled {
             let recurrence: Recurrence
-            switch recurrenceKind {
-            case .daily:
-                recurrence = .daily
-            case .weekdays:
-                recurrence = .weekdays
-            case .weekly:
-                recurrence = .weekly(weeklyDay)
-            case .customDays:
-                guard !customDays.isEmpty else {
-                    validationError = "Выберите хотя бы один день недели"
+            switch scheduleMode {
+            case .once:
+                let day = CalendarDay(date: oneTimeDate)
+                // Новую разовую встречу в прошлом создавать бессмысленно —
+                // она сразу окажется в "Прошедших" (или удалится). При
+                // редактировании уже существующей не мешаем: пользователь
+                // может просто переименовывать прошедшую встречу.
+                if editingMeetingID == nil,
+                   let start = day.date(hour: hour, minute: minute),
+                   start <= Date() {
+                    validationError = "Эта дата и время уже прошли, а машину времени мы ещё не изобрели"
                     return
                 }
-                recurrence = .customDays(customDays)
+                recurrence = .once(day, autoDelete: autoDeleteAfterMeeting)
+            case .recurring:
+                switch recurrenceKind {
+                case .daily:
+                    recurrence = .daily
+                case .weekdays:
+                    recurrence = .weekdays
+                case .weekly:
+                    recurrence = .weekly(weeklyDay)
+                case .customDays:
+                    guard !customDays.isEmpty else {
+                        validationError = "Выберите хотя бы один день недели"
+                        return
+                    }
+                    recurrence = .customDays(customDays)
+                }
             }
 
             schedule = MeetingSchedule(hour: hour, minute: minute, recurrence: recurrence)
@@ -358,6 +411,13 @@ struct MeetingEditorView: View {
 
         dismiss()
     }
+}
+
+// MARK: - Schedule mode (UI-only discriminator)
+
+/// Повторяющаяся встреча или разовая в конкретный день.
+private enum ScheduleMode: Hashable {
+    case recurring, once
 }
 
 // MARK: - Recurrence kind (UI-only discriminator)

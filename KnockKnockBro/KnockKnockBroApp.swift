@@ -8,6 +8,7 @@ struct KnockKnockBroApp: App {
     @State private var wakeObserver = WakeObserver()
     @State private var appSettingsStore: AppSettingsStore
     @State private var autoJoinRuntime = AutoJoinRuntime()
+    @State private var oneTimeMeetingCleaner = OneTimeMeetingCleaner()
     @State private var isShowingAbout = false
 
     init() {
@@ -43,6 +44,7 @@ struct KnockKnockBroApp: App {
                             meetingStore.cancelAutoJoin(meetingID: meetingID, on: date)
                         }
                     )
+                    oneTimeMeetingCleaner.start(store: meetingStore)
                 }
                 .onChange(of: meetingStore.meetings) { _, newMeetings in
                     notificationService.rescheduleAll(for: newMeetings, exceptions: meetingStore.exceptions)

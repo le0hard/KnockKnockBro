@@ -35,15 +35,29 @@ struct MeetingListView: View {
     @State private var editingMeeting: Meeting?
     @State private var meetingPendingDeletion: Meeting?
     @State private var copiedMeetingID: UUID?
+    @State private var isPastSectionExpanded = false
 
+    /// Все запланированные встречи: сначала повторяющиеся по времени
+    /// начала, затем разовые по дате и времени.
     private var scheduledMeetings: [Meeting] {
         store.meetings
             .filter { $0.type == .scheduled }
-            .sorted { lhs, rhs in
-                let lhsMinutes = (lhs.schedule?.hour ?? 0) * 60 + (lhs.schedule?.minute ?? 0)
-                let rhsMinutes = (rhs.schedule?.hour ?? 0) * 60 + (rhs.schedule?.minute ?? 0)
-                return lhsMinutes < rhsMinutes
-            }
+            .sorted { sortKey(for: $0) < sortKey(for: $1) }
+    }
+
+    /// Запланированные встречи без прошедших разовых — основной список
+    /// раздела "Все встречи".
+    private var activeScheduledMeetings: [Meeting] {
+        let now = Date()
+        return scheduledMeetings.filter { !$0.isPastOneTimeMeeting(now: now) }
+    }
+
+    /// Разовые встречи, чей день уже прошёл, — от самой свежей к старой.
+    private var pastOneTimeMeetings: [Meeting] {
+        let now = Date()
+        return Array(scheduledMeetings
+            .filter { $0.isPastOneTimeMeeting(now: now) }
+            .reversed())
     }
 
     private var todayMeetings: [Meeting] {
@@ -127,7 +141,8 @@ struct MeetingListView: View {
             )
         case .allMeetings:
             combinedList(
-                primary: scheduledMeetings,
+                primary: activeScheduledMeetings,
+                past: pastOneTimeMeetings,
                 emptyIcon: "list.bullet",
                 emptyTitle: "Тишина в календаре",
                 emptyDescription: "Нажмите «Новая встреча», чтобы это исправить."
@@ -152,6 +167,7 @@ struct MeetingListView: View {
 
     private func combinedList(
         primary: [Meeting],
+        past: [Meeting] = [],
         emptyIcon: String,
         emptyTitle: String,
         emptyDescription: String
@@ -178,6 +194,14 @@ struct MeetingListView: View {
                     }
                 }
             }
+
+            if !past.isEmpty {
+                Section("Прошедшие (\(past.count))", isExpanded: $isPastSectionExpanded) {
+                    ForEach(past) { meeting in
+                        meetingRow(for: meeting)
+                    }
+                }
+            }
         }
     }
 
@@ -200,7 +224,7 @@ struct MeetingListView: View {
     private func count(for section: SidebarSection) -> Int {
         switch section {
         case .today: return todayMeetings.count
-        case .allMeetings: return scheduledMeetings.count
+        case .allMeetings: return activeScheduledMeetings.count
         case .quickRooms: return quickRooms.count
         }
     }
@@ -215,6 +239,16 @@ struct MeetingListView: View {
                 copiedMeetingID = nil
             }
         }
+    }
+
+    /// Ключ сортировки: повторяющиеся (0) — по минутам от начала суток,
+    /// разовые (1) — по моменту начала.
+    private func sortKey(for meeting: Meeting) -> (Int, Double) {
+        if let start = meeting.oneTimeStartDate() {
+            return (1, start.timeIntervalSinceReferenceDate)
+        }
+        let minutes = (meeting.schedule?.hour ?? 0) * 60 + (meeting.schedule?.minute ?? 0)
+        return (0, Double(minutes))
     }
 
     private func hasOccurrenceToday(_ meeting: Meeting) -> Bool {
@@ -318,6 +352,8 @@ private struct MeetingRow: View {
             recurrence = "еженедельно, \(day.shortDisplayName)"
         case .customDays(let days):
             recurrence = days.sorted().map(\.shortDisplayName).joined(separator: ", ")
+        case .once(let day, let autoDelete):
+            recurrence = day.displayString() + (autoDelete ? " · удалится после встречи" : "")
         }
         return "\(time) · \(recurrence)"
     }

@@ -109,6 +109,8 @@ struct OccurrenceEngine {
             return weekday == targetDay
         case .customDays(let days):
             return days.contains(weekday)
+        case .once(let targetDay, _):
+            return CalendarDay(date: day, calendar: calendar) == targetDay
         }
     }
 }

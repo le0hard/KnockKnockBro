@@ -10,6 +10,7 @@ enum ImportValidationError: Error, Equatable {
     case missingScheduleForScheduledMeeting(meetingName: String)
     case invalidScheduleTime(meetingName: String)
     case emptyCustomDaysRecurrence(meetingName: String)
+    case invalidOneTimeDate(meetingName: String)
     case duplicateMeetingID(meetingName: String)
     case exceptionReferencesUnknownMeeting
 
@@ -18,7 +19,7 @@ enum ImportValidationError: Error, Equatable {
         case .malformedJSON:
             return "Файл повреждён или не является корректным JSON."
         case .unsupportedFormatVersion(let found, let supported):
-            return "Неподдерживаемая версия формата (\(found)). KnockKnockBro поддерживает версию \(supported)."
+            return "Неподдерживаемая версия формата (\(found)). Эта версия KnockKnockBro поддерживает форматы до \(supported) включительно."
         case .invalidURL(let meetingName):
             return "Некорректная ссылка у встречи «\(meetingName)»."
         case .missingScheduleForScheduledMeeting(let meetingName):
@@ -27,6 +28,8 @@ enum ImportValidationError: Error, Equatable {
             return "Некорректное время начала у встречи «\(meetingName)»."
         case .emptyCustomDaysRecurrence(let meetingName):
             return "У встречи «\(meetingName)» не выбран ни один день недели для повторения."
+        case .invalidOneTimeDate(let meetingName):
+            return "У разовой встречи «\(meetingName)» указана несуществующая дата."
         case .duplicateMeetingID(let meetingName):
             return "В файле дважды встречается одна и та же встреча «\(meetingName)» (совпадающий идентификатор)."
         case .exceptionReferencesUnknownMeeting:
@@ -87,7 +90,7 @@ struct ImportExportService {
             return .failure(.malformedJSON)
         }
 
-        guard file.formatVersion == MeetingStore.currentFormatVersion else {
+        guard MeetingStore.supportedFormatVersions.contains(file.formatVersion) else {
             return .failure(.unsupportedFormatVersion(found: file.formatVersion, supported: MeetingStore.currentFormatVersion))
         }
 
@@ -111,6 +114,9 @@ struct ImportExportService {
                 }
                 if case .customDays(let days) = schedule.recurrence, days.isEmpty {
                     return .failure(.emptyCustomDaysRecurrence(meetingName: meeting.name))
+                }
+                if case .once(let day, _) = schedule.recurrence, !day.isValid() {
+                    return .failure(.invalidOneTimeDate(meetingName: meeting.name))
                 }
             }
         }

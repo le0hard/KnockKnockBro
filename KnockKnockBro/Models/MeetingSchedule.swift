@@ -15,6 +15,23 @@ enum Recurrence: Equatable, Hashable {
     case weekly(Weekday)
     /// В выбранные дни недели (может быть несколько дней в неделе).
     case customDays(Set<Weekday>)
+    /// Разовая встреча в конкретный день (v0.4.0).
+    ///
+    /// `autoDelete` — удалить встречу автоматически через час после
+    /// начала (см. `MeetingStore.deleteExpiredOneTimeMeetings`). Без
+    /// автоудаления прошедшая разовая встреча остаётся в списке, в
+    /// разделе "Прошедшие". Флаг живёт внутри этого case, а не в
+    /// `MeetingSchedule`, потому что для повторяющихся встреч он не имеет
+    /// смысла.
+    case once(CalendarDay, autoDelete: Bool)
+}
+
+extension Recurrence {
+    /// День разовой встречи; `nil` для повторяющихся.
+    var oneTimeDay: CalendarDay? {
+        if case .once(let day, _) = self { return day }
+        return nil
+    }
 }
 
 // MARK: - Codable
@@ -24,10 +41,12 @@ extension Recurrence: Codable {
         case type
         case weekday
         case weekdays
+        case date
+        case autoDelete
     }
 
     private enum Kind: String, Codable {
-        case daily, weekdays, weekly, customDays
+        case daily, weekdays, weekly, customDays, once
     }
 
     init(from decoder: Decoder) throws {
@@ -44,6 +63,10 @@ extension Recurrence: Codable {
         case .customDays:
             let days = try container.decode(Set<Weekday>.self, forKey: .weekdays)
             self = .customDays(days)
+        case .once:
+            let day = try container.decode(CalendarDay.self, forKey: .date)
+            let autoDelete = try container.decodeIfPresent(Bool.self, forKey: .autoDelete) ?? false
+            self = .once(day, autoDelete: autoDelete)
         }
     }
 
@@ -60,6 +83,10 @@ extension Recurrence: Codable {
         case .customDays(let days):
             try container.encode(Kind.customDays, forKey: .type)
             try container.encode(days, forKey: .weekdays)
+        case .once(let day, let autoDelete):
+            try container.encode(Kind.once, forKey: .type)
+            try container.encode(day, forKey: .date)
+            try container.encode(autoDelete, forKey: .autoDelete)
         }
     }
 }

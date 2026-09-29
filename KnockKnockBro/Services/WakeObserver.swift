@@ -81,6 +81,13 @@ final class WakeObserver {
         // начинались в пределах одного окна), показываем ближайшую по
         // времени начала — остальные пользователь сможет открыть вручную
         // из главного окна или Menu Bar.
-        return occurrences.last
+        // Встречи, к которым пользователь уже подключился (например, с
+        // другого устройства нажал "Я уже на встрече" до сна), не
+        // предлагаем повторно.
+        return occurrences.last { occurrence in
+            !exceptions.contains {
+                $0.joined && $0.matches(meetingID: occurrence.meeting.id, date: occurrence.startDate, calendar: calendar)
+            }
+        }
     }
 }

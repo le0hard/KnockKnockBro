@@ -42,8 +42,22 @@ struct KnockKnockBroApp: App {
                         telemostModeProvider: { appSettingsStore.telemostConnectionMode },
                         onCancelRequested: { meetingID, date in
                             meetingStore.cancelAutoJoin(meetingID: meetingID, on: date)
+                        },
+                        onJoined: { meetingID, date in
+                            meetingStore.markJoined(meetingID: meetingID, on: date)
                         }
                     )
+                    // "Подключиться" из системного уведомления засчитывается
+                    // по тем же правилам, что и в интерфейсе (JoinTracking).
+                    notificationService.onJoinRequested = { meetingID, startDate in
+                        if JoinTracking.countsAsJoin(
+                            occurrenceStart: startDate,
+                            now: Date(),
+                            windowMinutes: appSettingsStore.joinCountingWindowMinutes
+                        ) {
+                            meetingStore.markJoined(meetingID: meetingID, on: startDate)
+                        }
+                    }
                     oneTimeMeetingCleaner.start(store: meetingStore)
                 }
                 .onChange(of: meetingStore.meetings) { _, newMeetings in
@@ -62,6 +76,8 @@ struct KnockKnockBroApp: App {
                         occurrence: occurrence,
                         onJoin: {
                             MeetingLauncher.open(occurrence.meeting.url)
+                            // Встреча уже началась — подключение всегда засчитывается.
+                            meetingStore.markJoined(meetingID: occurrence.meeting.id, on: occurrence.startDate)
                             wakeObserver.dismissMissedOccurrence()
                         },
                         onDismiss: {

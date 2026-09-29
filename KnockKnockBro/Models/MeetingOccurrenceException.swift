@@ -34,12 +34,20 @@ struct MeetingOccurrenceException: Identifiable, Codable, Equatable, Hashable {
     /// только на срабатывание автоматического подключения.
     var autoJoinCancelled: Bool
 
+    /// `true`, если пользователь уже подключился к встрече в этот день
+    /// (нажал "Подключиться" в пределах окна засчитывания, сработал Auto
+    /// Join или нажал "Я уже на встрече" — v0.5.0). Для такого экземпляра
+    /// больше не показываются countdown Auto Join, оставшиеся напоминания
+    /// и промпт после пробуждения. Правило повторения не затрагивается.
+    var joined: Bool
+
     init(
         id: UUID = UUID(),
         meetingID: UUID,
         date: Date,
         isSkipped: Bool = false,
         autoJoinCancelled: Bool = false,
+        joined: Bool = false,
         calendar: Calendar = .current
     ) {
         self.id = id
@@ -50,10 +58,11 @@ struct MeetingOccurrenceException: Identifiable, Codable, Equatable, Hashable {
         self.day = components.day ?? 0
         self.isSkipped = isSkipped
         self.autoJoinCancelled = autoJoinCancelled
+        self.joined = joined
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, meetingID, year, month, day, isSkipped, autoJoinCancelled
+        case id, meetingID, year, month, day, isSkipped, autoJoinCancelled, joined
     }
 
     /// Ручной `Decodable` — чтобы файлы, сохранённые ДО появления
@@ -70,6 +79,7 @@ struct MeetingOccurrenceException: Identifiable, Codable, Equatable, Hashable {
         day = try container.decode(Int.self, forKey: .day)
         isSkipped = try container.decode(Bool.self, forKey: .isSkipped)
         autoJoinCancelled = try container.decodeIfPresent(Bool.self, forKey: .autoJoinCancelled) ?? false
+        joined = try container.decodeIfPresent(Bool.self, forKey: .joined) ?? false
     }
 
     /// `true`, если это исключение относится к указанной встрече и к тому

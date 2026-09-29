@@ -21,6 +21,12 @@ final class NotificationService: NSObject {
 
     private var audioPlayer: AVAudioPlayer?
 
+    /// Вызывается (на главном потоке) после нажатия "Подключиться" в
+    /// уведомлении: id встречи и начало экземпляра. Приложение решает,
+    /// засчитывать ли это как подключение (`JoinTracking`) — сам сервис
+    /// уведомлений о хранилище встреч не знает.
+    var onJoinRequested: ((UUID, Date) -> Void)?
+
     private(set) var isAuthorized: Bool?
 
     private static let categoryIdentifier = "MEETING_REMINDER"
@@ -87,10 +93,22 @@ final class NotificationService: NSObject {
         let range = DateInterval(start: now, duration: schedulingHorizon)
         let occurrences = OccurrenceEngine.occurrences(for: meetings, in: range, exceptions: exceptions, calendar: calendar)
 
-        for occurrence in occurrences {
+        for occurrence in occurrences where !Self.isJoined(occurrence, exceptions: exceptions, calendar: calendar) {
             for reminder in occurrence.meeting.reminders {
                 schedule(reminder: reminder, for: occurrence, now: now)
             }
+        }
+    }
+
+    /// Экземпляр, к которому пользователь уже подключился, — оставшиеся
+    /// напоминания для него не нужны.
+    private static func isJoined(
+        _ occurrence: MeetingOccurrence,
+        exceptions: [MeetingOccurrenceException],
+        calendar: Calendar
+    ) -> Bool {
+        exceptions.contains {
+            $0.joined && $0.matches(meetingID: occurrence.meeting.id, date: occurrence.startDate, calendar: calendar)
         }
     }
 
@@ -219,6 +237,11 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             let options = launcher.connectOptions(for: meeting, telemostMode: telemostModeProvider())
             let preferredURL = options.first?.url ?? url
             launcher.open(preferredURL)
+            if let id = UUID(uuidString: meetingID) {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onJoinRequested?(id, startDate)
+                }
+            }
         case Self.snoozeActionIdentifier:
             scheduleSnooze(meetingID: meetingID, meetingName: meetingName, meetingURLString: urlString, originalStartDate: startDate)
         default:

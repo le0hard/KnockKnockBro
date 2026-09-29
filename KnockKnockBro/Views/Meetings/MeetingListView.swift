@@ -146,6 +146,7 @@ struct MeetingListView: View {
         case .today:
             combinedList(
                 primary: todayMeetings,
+                strikesRecurringStartedToday: true,
                 emptyIcon: "calendar",
                 emptyTitle: "Тишина в календаре",
                 emptyDescription: "Свободный день."
@@ -180,7 +181,7 @@ struct MeetingListView: View {
                     )
                 } else {
                     ForEach(pastOneTimeMeetings) { meeting in
-                        meetingRow(for: meeting)
+                        meetingRow(for: meeting, isPast: true)
                     }
                 }
             }
@@ -189,8 +190,13 @@ struct MeetingListView: View {
         }
     }
 
+    /// - Parameter strikesRecurringStartedToday: в разделе "Сегодня"
+    ///   зачёркивается и повторяющаяся встреча, чей сегодняшний экземпляр
+    ///   уже начался; в "Все встречи" повторяющиеся не зачёркиваются —
+    ///   правило повторения не "проходит".
     private func combinedList(
         primary: [Meeting],
+        strikesRecurringStartedToday: Bool = false,
         emptyIcon: String,
         emptyTitle: String,
         emptyDescription: String
@@ -205,7 +211,7 @@ struct MeetingListView: View {
                     )
                 } else {
                     ForEach(primary) { meeting in
-                        meetingRow(for: meeting)
+                        meetingRow(for: meeting, isPast: hasStarted(meeting, includingRecurringToday: strikesRecurringStartedToday))
                     }
                 }
             }
@@ -220,14 +226,21 @@ struct MeetingListView: View {
         }
     }
 
-    private func meetingRow(for meeting: Meeting) -> some View {
+    private func meetingRow(for meeting: Meeting, isPast: Bool = false) -> some View {
         MeetingRow(
             meeting: meeting,
+            isPast: isPast,
             didCopy: copiedMeetingID == meeting.id,
             hasOccurrenceToday: hasOccurrenceToday(meeting),
             isSkippedToday: store.isSkipped(meetingID: meeting.id),
             isAutoJoinCancelledToday: store.isAutoJoinCancelled(meetingID: meeting.id),
+            isJoinedToday: store.isJoined(meetingID: meeting.id),
+            shareStartDate: shareStartDate(for: meeting),
             connectOptions: MeetingLauncher.connectOptions(for: meeting, telemostMode: settings.telemostConnectionMode),
+            onJoin: { url in
+                MeetingLauncher.open(url)
+                store.recordJoinIfEligible(meeting: meeting, windowMinutes: settings.joinCountingWindowMinutes)
+            },
             onCopy: { copy(meeting) },
             onToggleEnabled: { store.setEnabled(id: meeting.id, enabled: $0) },
             onToggleSkipToday: { store.toggleSkip(meetingID: meeting.id) },
@@ -245,8 +258,12 @@ struct MeetingListView: View {
         }
     }
 
+    /// Копирует название и ссылку — тот же текст, что и значок копирования
+    /// в попапе. Для запланированной встречи в названии указывается время
+    /// начала (у разовой — её собственное, у повторяющейся — время по
+    /// расписанию).
     private func copy(_ meeting: Meeting) {
-        MeetingLauncher.copyURL(meeting.url)
+        MeetingLauncher.copyShareText(for: meeting, startDate: shareStartDate(for: meeting))
         copiedMeetingID = meeting.id
 
         Task {
@@ -254,6 +271,15 @@ struct MeetingListView: View {
             if copiedMeetingID == meeting.id {
                 copiedMeetingID = nil
             }
+        }
+    }
+
+    /// Время начала для текста "название — время + ссылка": у разовой
+    /// встречи — её собственное, у повторяющейся — время по расписанию
+    /// (на сегодня), у Quick Room — нет.
+    private func shareStartDate(for meeting: Meeting) -> Date? {
+        meeting.oneTimeStartDate() ?? meeting.schedule.flatMap { schedule in
+            Calendar.current.date(bySettingHour: schedule.hour, minute: schedule.minute, second: 0, of: Date())
         }
     }
 
@@ -265,6 +291,22 @@ struct MeetingListView: View {
         }
         let minutes = (meeting.schedule?.hour ?? 0) * 60 + (meeting.schedule?.minute ?? 0)
         return (0, Double(minutes))
+    }
+
+    /// Встреча уже началась: разовая — по своему моменту начала;
+    /// повторяющаяся — только если `includingRecurringToday` и её
+    /// сегодняшний экземпляр уже начался.
+    private func hasStarted(_ meeting: Meeting, includingRecurringToday: Bool) -> Bool {
+        let now = Date()
+        if let start = meeting.oneTimeStartDate() {
+            return start <= now
+        }
+        guard includingRecurringToday else { return false }
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: now)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return false }
+        return OccurrenceEngine.occurrences(for: meeting, in: DateInterval(start: dayStart, end: dayEnd), calendar: calendar)
+            .contains { $0.startDate <= now }
     }
 
     private func hasOccurrenceToday(_ meeting: Meeting) -> Bool {
@@ -280,11 +322,17 @@ struct MeetingListView: View {
 private struct MeetingRow: View {
     @Environment(\.colorScheme) private var colorScheme
     let meeting: Meeting
+    /// Встреча уже прошла/началась — название зачёркнуто (время в
+    /// подзаголовке — нет).
+    let isPast: Bool
     let didCopy: Bool
     let hasOccurrenceToday: Bool
     let isSkippedToday: Bool
     let isAutoJoinCancelledToday: Bool
+    let isJoinedToday: Bool
+    let shareStartDate: Date?
     let connectOptions: [MeetingLauncher.ConnectOption]
+    let onJoin: (URL) -> Void
     let onCopy: () -> Void
     let onToggleEnabled: (Bool) -> Void
     let onToggleSkipToday: () -> Void
@@ -296,8 +344,14 @@ private struct MeetingRow: View {
             ServiceIconView(service: meeting.service, size: 28)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(meeting.name)
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Text(meeting.name)
+                        .font(.headline)
+                        .pastMeetingNameStyle(isPast)
+                    if isJoinedToday {
+                        JoinedBadge()
+                    }
+                }
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -305,15 +359,19 @@ private struct MeetingRow: View {
 
             Spacer()
 
-            Button(didCopy ? "Скопировано" : "Копировать ссылку", action: onCopy)
+            Button(didCopy ? "Скопировано" : "Копировать", action: onCopy)
+                .buttonStyle(.bordered)
+                .help("Копировать название и ссылку")
+
+            MeetingShareButton(meeting: meeting, startDate: shareStartDate)
                 .buttonStyle(.bordered)
 
             ForEach(connectOptions) { option in
                 ConnectOptionButton(
                     title: option.title,
-                    isPrimary: option.id == connectOptions.first?.id,
+                    isPrimary: !isJoinedToday && option.id == connectOptions.first?.id,
                     isEnabled: meeting.enabled,
-                    action: { MeetingLauncher.open(option.url) }
+                    action: { onJoin(option.url) }
                 )
             }
 
@@ -348,7 +406,9 @@ private struct MeetingRow: View {
         if let schedule = meeting.schedule {
             parts.append(scheduleDescription(schedule))
         }
-        if isSkippedToday {
+        if isJoinedToday {
+            parts.append("подключились сегодня")
+        } else if isSkippedToday {
             parts.append("пропущена сегодня")
         } else if isAutoJoinCancelledToday && (meeting.autoJoin?.isEnabled ?? false) {
             parts.append("автоподключение отменено сегодня")

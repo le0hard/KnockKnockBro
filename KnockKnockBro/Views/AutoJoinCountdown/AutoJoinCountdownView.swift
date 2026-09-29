@@ -8,6 +8,9 @@ struct AutoJoinCountdownView: View {
     let countdown: TimeInterval
     let connectOptions: [MeetingLauncher.ConnectOption]
     let onJoinNow: (URL) -> Void
+    /// "Я уже на встрече" — закрыть панель и отметить встречу принятой,
+    /// не открывая ссылку.
+    let onAlreadyJoined: () -> Void
     let onCancel: () -> Void
 
     @State private var now = Date()
@@ -54,8 +57,12 @@ struct AutoJoinCountdownView: View {
                         )
                     }
                 }
-                Button("Отмена", action: onCancel)
-                    .buttonStyle(.bordered)
+                HStack {
+                    Button("Я уже на встрече", action: onAlreadyJoined)
+                        .buttonStyle(.bordered)
+                    Button("Отмена", action: onCancel)
+                        .buttonStyle(.bordered)
+                }
             }
         }
         .padding(20)
@@ -98,6 +105,7 @@ struct AutoJoinCountdownView: View {
             MeetingLauncher.ConnectOption(title: "Подключиться web", url: URL(string: "https://telemost.yandex.ru/j/1")!),
         ],
         onJoinNow: { _ in },
+        onAlreadyJoined: {},
         onCancel: {}
     )
 }

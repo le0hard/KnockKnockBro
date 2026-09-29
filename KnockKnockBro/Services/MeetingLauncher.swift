@@ -17,11 +17,16 @@ struct MeetingLauncher {
         let id: String
         let title: String
         let url: URL
+        /// SF Symbol для компактной кнопки-значка в попапе Menu Bar
+        /// (v0.5.0): камера — подключение в приложении/по ссылке, глобус —
+        /// веб-версия. Полная подпись `title` показывается в подсказке.
+        let systemImage: String
 
-        init(title: String, url: URL) {
+        init(title: String, url: URL, systemImage: String = "video.fill") {
             self.id = title
             self.title = title
             self.url = url
+            self.systemImage = systemImage
         }
     }
 
@@ -37,6 +42,29 @@ struct MeetingLauncher {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(url.absoluteString, forType: .string)
+    }
+
+    /// Текст "название + ссылка" для отправки коллеге (кнопка копирования
+    /// в попапе, v0.5.0). Для запланированной встречи в первую строку
+    /// добавляется время начала:
+    ///
+    ///     Daily — 10:00
+    ///     https://telemost.yandex.ru/j/…
+    static func shareText(for meeting: Meeting, startDate: Date? = nil) -> String {
+        var title = meeting.name
+        if let startDate {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            title += " — " + formatter.string(from: startDate)
+        }
+        return title + "\n" + meeting.url.absoluteString
+    }
+
+    /// Копирует `shareText` в буфер обмена.
+    static func copyShareText(for meeting: Meeting, startDate: Date? = nil) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(shareText(for: meeting, startDate: startDate), forType: .string)
     }
 
     // MARK: - Яндекс Телемост: deep link в нативное приложение
@@ -102,7 +130,7 @@ struct MeetingLauncher {
             if let deepLink = telemostDeepLink(from: meeting.url), appAvailabilityCheck() {
                 return [
                     ConnectOption(title: "Подключиться", url: deepLink),
-                    ConnectOption(title: "Подключиться web", url: meeting.url),
+                    ConnectOption(title: "Подключиться web", url: meeting.url, systemImage: "globe"),
                 ]
             }
             return [ConnectOption(title: "Подключиться", url: meeting.url)]

@@ -19,6 +19,7 @@ final class AutoJoinPanelController: NSObject, NSWindowDelegate {
         countdown: TimeInterval,
         connectOptions: [MeetingLauncher.ConnectOption],
         onJoinNow: @escaping (URL) -> Void,
+        onAlreadyJoined: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
         onCancelHandler = onCancel
@@ -28,6 +29,7 @@ final class AutoJoinPanelController: NSObject, NSWindowDelegate {
             countdown: countdown,
             connectOptions: connectOptions,
             onJoinNow: onJoinNow,
+            onAlreadyJoined: onAlreadyJoined,
             onCancel: onCancel
         )
         let hosting = NSHostingView(rootView: contentView)

@@ -22,8 +22,8 @@ struct AutoJoinService {
     ///
     /// Условия триггера:
     /// - `meeting.enabled == true` и `meeting.autoJoin?.isEnabled == true`;
-    /// - на эту дату нет исключения с `isSkipped == true` или
-    ///   `autoJoinCancelled == true`;
+    /// - на эту дату нет исключения с `isSkipped`, `autoJoinCancelled` или
+    ///   `joined` (пользователь уже подключился — v0.5.0);
     /// - `now` находится в полуоткрытом окне
     ///   `[occurrence.startDate - countdown, occurrence.startDate)` —
     ///   отсчёт уже должен идти, но встреча ещё не началась.
@@ -83,7 +83,7 @@ struct AutoJoinService {
         calendar: Calendar
     ) -> Bool {
         exceptions.contains {
-            ($0.isSkipped || $0.autoJoinCancelled)
+            ($0.isSkipped || $0.autoJoinCancelled || $0.joined)
                 && $0.matches(meetingID: occurrence.meeting.id, date: occurrence.startDate, calendar: calendar)
         }
     }

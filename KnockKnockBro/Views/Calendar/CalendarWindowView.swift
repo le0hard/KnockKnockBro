@@ -240,6 +240,7 @@ struct CalendarWindowView: View {
         let occurrence = item.occurrence
         let isToday = calendar.isDate(occurrence.startDate, inSameDayAs: now)
         let hasStarted = occurrence.startDate <= now
+        let isJoined = store.isJoined(meetingID: occurrence.meeting.id, on: occurrence.startDate)
         let connectOptions = (isToday && !item.isSkipped)
             ? MeetingLauncher.connectOptions(for: occurrence.meeting, telemostMode: settings.telemostConnectionMode)
             : []
@@ -267,17 +268,27 @@ struct CalendarWindowView: View {
 
             Text(occurrence.meeting.name)
                 .font(.headline)
-                .strikethrough(item.isSkipped)
-                .foregroundStyle(item.isSkipped ? .secondary : .primary)
+                .pastMeetingNameStyle(item.isSkipped || hasStarted)
                 .lineLimit(2)
+
+            if isJoined {
+                JoinedBadge()
+            }
 
             Spacer(minLength: 8)
 
             ForEach(connectOptions) { option in
                 ConnectOptionButton(
                     title: option.title,
-                    isPrimary: option.id == connectOptions.first?.id,
-                    action: { MeetingLauncher.open(option.url) }
+                    isPrimary: !isJoined && option.id == connectOptions.first?.id,
+                    action: {
+                        MeetingLauncher.open(option.url)
+                        store.recordJoinIfEligible(
+                            meeting: occurrence.meeting,
+                            occurrenceStart: occurrence.startDate,
+                            windowMinutes: settings.joinCountingWindowMinutes
+                        )
+                    }
                 )
                 .controlSize(.small)
             }

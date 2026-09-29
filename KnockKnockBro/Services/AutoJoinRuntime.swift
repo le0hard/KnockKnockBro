@@ -23,19 +23,22 @@ final class AutoJoinRuntime {
     private var defaultCountdownProvider: (() -> TimeInterval)?
     private var telemostModeProvider: (() -> TelemostConnectionMode)?
     private var onCancelRequested: ((UUID, Date) -> Void)?
+    private var onJoined: ((UUID, Date) -> Void)?
 
     func start(
         meetingsProvider: @escaping () -> [Meeting],
         exceptionsProvider: @escaping () -> [MeetingOccurrenceException],
         defaultCountdownProvider: @escaping () -> TimeInterval,
         telemostModeProvider: @escaping () -> TelemostConnectionMode,
-        onCancelRequested: @escaping (UUID, Date) -> Void
+        onCancelRequested: @escaping (UUID, Date) -> Void,
+        onJoined: @escaping (UUID, Date) -> Void
     ) {
         self.meetingsProvider = meetingsProvider
         self.exceptionsProvider = exceptionsProvider
         self.defaultCountdownProvider = defaultCountdownProvider
         self.telemostModeProvider = telemostModeProvider
         self.onCancelRequested = onCancelRequested
+        self.onJoined = onJoined
 
         tickTask?.cancel()
         tickTask = Task {
@@ -51,8 +54,17 @@ final class AutoJoinRuntime {
         purgeOldTriggeredIDs(now: now)
 
         if let occurrence = activeOccurrence {
-            if now >= occurrence.startDate {
+            // Пользователь уже подключился другим способом (попап, главное
+            // окно, уведомление) — отсчёт больше не нужен, и открывать
+            // ссылку второй раз нельзя.
+            let isJoinedElsewhere = exceptionsProvider?().contains {
+                $0.joined && $0.matches(meetingID: occurrence.meeting.id, date: occurrence.startDate)
+            } ?? false
+            if isJoinedElsewhere {
+                dismissPanel()
+            } else if now >= occurrence.startDate {
                 openPreferredURL(for: occurrence.meeting)
+                onJoined?(occurrence.meeting.id, occurrence.startDate)
                 dismissPanel()
             }
             return
@@ -85,6 +97,12 @@ final class AutoJoinRuntime {
             connectOptions: connectOptions,
             onJoinNow: { [weak self] url in
                 MeetingLauncher.open(url)
+                self?.onJoined?(occurrence.meeting.id, occurrence.startDate)
+                self?.dismissPanel()
+            },
+            onAlreadyJoined: { [weak self] in
+                // "Я уже на встрече": ссылку не открываем, только отмечаем.
+                self?.onJoined?(occurrence.meeting.id, occurrence.startDate)
                 self?.dismissPanel()
             },
             onCancel: { [weak self] in

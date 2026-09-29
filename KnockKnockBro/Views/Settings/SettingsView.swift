@@ -196,6 +196,23 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Section("Учёт подключения") {
+                Stepper(
+                    value: Binding(
+                        get: { settings.joinCountingWindowMinutes },
+                        set: { settings.joinCountingWindowMinutes = $0 }
+                    ),
+                    in: 0...120,
+                    step: 5
+                ) {
+                    Text("Засчитывать подключение за \(settings.joinCountingWindowMinutes) мин до начала")
+                }
+                Text("Нажатие «Подключиться» в этом окне и позже, до конца дня, отмечает встречу как «уже подключился»: автоподключение, оставшиеся напоминания и вопрос после пробуждения для неё больше не появятся. Более раннее нажатие просто открывает ссылку.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .formStyle(.grouped)
     }

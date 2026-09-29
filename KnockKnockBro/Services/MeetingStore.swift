@@ -225,6 +225,27 @@ final class MeetingStore {
         persist()
     }
 
+    // MARK: - Отметка подключения (v0.5.0)
+
+    /// `true`, если пользователь уже подключился к этой встрече в день `date`.
+    func isJoined(meetingID: UUID, on date: Date = Date(), calendar: Calendar = .current) -> Bool {
+        exceptions.contains { $0.joined && $0.matches(meetingID: meetingID, date: date, calendar: calendar) }
+    }
+
+    /// Отмечает экземпляр встречи в день `date` как "уже подключился".
+    /// Как и `cancelAutoJoin`, дописывает флаг к существующему исключению
+    /// этого дня, не трогая остальные флаги. Повторный вызов ничего не
+    /// меняет и не перезаписывает файл.
+    func markJoined(meetingID: UUID, on date: Date, calendar: Calendar = .current) {
+        if let index = exceptions.firstIndex(where: { $0.matches(meetingID: meetingID, date: date, calendar: calendar) }) {
+            guard !exceptions[index].joined else { return }
+            exceptions[index].joined = true
+        } else {
+            exceptions.append(MeetingOccurrenceException(meetingID: meetingID, date: date, joined: true, calendar: calendar))
+        }
+        persist()
+    }
+
     // MARK: - Persistence
 
     private func persist() {

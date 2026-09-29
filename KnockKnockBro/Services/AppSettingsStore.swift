@@ -30,6 +30,7 @@ final class AppSettingsStore {
         static let showInMenuBar = "showInMenuBar"
         static let openMainWindowOnLaunch = "openMainWindowOnLaunch"
         static let telemostConnectionMode = "telemostConnectionMode"
+        static let joinCountingWindowMinutes = "joinCountingWindowMinutes"
     }
 
     static let fallbackDefaultCountdown: TimeInterval = 10
@@ -66,6 +67,14 @@ final class AppSettingsStore {
         }
     }
 
+    /// За сколько минут до начала нажатие "Подключиться" уже засчитывается
+    /// как подключение (см. `JoinTracking`). По умолчанию 15.
+    var joinCountingWindowMinutes: Int {
+        didSet {
+            defaults.set(joinCountingWindowMinutes, forKey: Key.joinCountingWindowMinutes)
+        }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
@@ -89,6 +98,12 @@ final class AppSettingsStore {
             self.telemostConnectionMode = mode
         } else {
             self.telemostConnectionMode = .both
+        }
+
+        if defaults.object(forKey: Key.joinCountingWindowMinutes) != nil {
+            self.joinCountingWindowMinutes = defaults.integer(forKey: Key.joinCountingWindowMinutes)
+        } else {
+            self.joinCountingWindowMinutes = JoinTracking.defaultCountingWindowMinutes
         }
     }
 }

@@ -234,7 +234,12 @@ struct MeetingListView: View {
             hasOccurrenceToday: hasOccurrenceToday(meeting),
             isSkippedToday: store.isSkipped(meetingID: meeting.id),
             isAutoJoinCancelledToday: store.isAutoJoinCancelled(meetingID: meeting.id),
+            isJoinedToday: store.isJoined(meetingID: meeting.id),
             connectOptions: MeetingLauncher.connectOptions(for: meeting, telemostMode: settings.telemostConnectionMode),
+            onJoin: { url in
+                MeetingLauncher.open(url)
+                store.recordJoinIfEligible(meeting: meeting, windowMinutes: settings.joinCountingWindowMinutes)
+            },
             onCopy: { copy(meeting) },
             onToggleEnabled: { store.setEnabled(id: meeting.id, enabled: $0) },
             onToggleSkipToday: { store.toggleSkip(meetingID: meeting.id) },
@@ -310,7 +315,9 @@ private struct MeetingRow: View {
     let hasOccurrenceToday: Bool
     let isSkippedToday: Bool
     let isAutoJoinCancelledToday: Bool
+    let isJoinedToday: Bool
     let connectOptions: [MeetingLauncher.ConnectOption]
+    let onJoin: (URL) -> Void
     let onCopy: () -> Void
     let onToggleEnabled: (Bool) -> Void
     let onToggleSkipToday: () -> Void
@@ -322,9 +329,14 @@ private struct MeetingRow: View {
             ServiceIconView(service: meeting.service, size: 28)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(meeting.name)
-                    .font(.headline)
-                    .pastMeetingNameStyle(isPast)
+                HStack(spacing: 6) {
+                    Text(meeting.name)
+                        .font(.headline)
+                        .pastMeetingNameStyle(isPast)
+                    if isJoinedToday {
+                        JoinedBadge()
+                    }
+                }
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -338,9 +350,9 @@ private struct MeetingRow: View {
             ForEach(connectOptions) { option in
                 ConnectOptionButton(
                     title: option.title,
-                    isPrimary: option.id == connectOptions.first?.id,
+                    isPrimary: !isJoinedToday && option.id == connectOptions.first?.id,
                     isEnabled: meeting.enabled,
-                    action: { MeetingLauncher.open(option.url) }
+                    action: { onJoin(option.url) }
                 )
             }
 
@@ -375,7 +387,9 @@ private struct MeetingRow: View {
         if let schedule = meeting.schedule {
             parts.append(scheduleDescription(schedule))
         }
-        if isSkippedToday {
+        if isJoinedToday {
+            parts.append("подключились сегодня")
+        } else if isSkippedToday {
             parts.append("пропущена сегодня")
         } else if isAutoJoinCancelledToday && (meeting.autoJoin?.isEnabled ?? false) {
             parts.append("автоподключение отменено сегодня")

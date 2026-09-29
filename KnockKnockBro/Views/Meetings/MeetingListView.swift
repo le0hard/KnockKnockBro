@@ -235,6 +235,7 @@ struct MeetingListView: View {
             isSkippedToday: store.isSkipped(meetingID: meeting.id),
             isAutoJoinCancelledToday: store.isAutoJoinCancelled(meetingID: meeting.id),
             isJoinedToday: store.isJoined(meetingID: meeting.id),
+            shareStartDate: shareStartDate(for: meeting),
             connectOptions: MeetingLauncher.connectOptions(for: meeting, telemostMode: settings.telemostConnectionMode),
             onJoin: { url in
                 MeetingLauncher.open(url)
@@ -257,8 +258,12 @@ struct MeetingListView: View {
         }
     }
 
+    /// Копирует название и ссылку — тот же текст, что и значок копирования
+    /// в попапе. Для запланированной встречи в названии указывается время
+    /// начала (у разовой — её собственное, у повторяющейся — время по
+    /// расписанию).
     private func copy(_ meeting: Meeting) {
-        MeetingLauncher.copyURL(meeting.url)
+        MeetingLauncher.copyShareText(for: meeting, startDate: shareStartDate(for: meeting))
         copiedMeetingID = meeting.id
 
         Task {
@@ -266,6 +271,15 @@ struct MeetingListView: View {
             if copiedMeetingID == meeting.id {
                 copiedMeetingID = nil
             }
+        }
+    }
+
+    /// Время начала для текста "название — время + ссылка": у разовой
+    /// встречи — её собственное, у повторяющейся — время по расписанию
+    /// (на сегодня), у Quick Room — нет.
+    private func shareStartDate(for meeting: Meeting) -> Date? {
+        meeting.oneTimeStartDate() ?? meeting.schedule.flatMap { schedule in
+            Calendar.current.date(bySettingHour: schedule.hour, minute: schedule.minute, second: 0, of: Date())
         }
     }
 
@@ -316,6 +330,7 @@ private struct MeetingRow: View {
     let isSkippedToday: Bool
     let isAutoJoinCancelledToday: Bool
     let isJoinedToday: Bool
+    let shareStartDate: Date?
     let connectOptions: [MeetingLauncher.ConnectOption]
     let onJoin: (URL) -> Void
     let onCopy: () -> Void
@@ -344,7 +359,11 @@ private struct MeetingRow: View {
 
             Spacer()
 
-            Button(didCopy ? "Скопировано" : "Копировать ссылку", action: onCopy)
+            Button(didCopy ? "Скопировано" : "Копировать", action: onCopy)
+                .buttonStyle(.bordered)
+                .help("Копировать название и ссылку")
+
+            MeetingShareButton(meeting: meeting, startDate: shareStartDate)
                 .buttonStyle(.bordered)
 
             ForEach(connectOptions) { option in

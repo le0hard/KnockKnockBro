@@ -11,6 +11,9 @@ struct MenuBarContentView: View {
     @Environment(\.openSettings) private var openSettings
     @Environment(\.dismiss) private var dismiss
     @State private var now = Date()
+    /// Строка, для которой только что скопировали название и ссылку —
+    /// значок на ~1,5 с меняется на галочку.
+    @State private var copiedRowID: String?
 
     private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
@@ -199,6 +202,9 @@ struct MenuBarContentView: View {
                 JoinedBadge()
             }
             Spacer(minLength: 8)
+            copyButton(rowID: occurrence.id) {
+                MeetingLauncher.copyShareText(for: occurrence.meeting, startDate: occurrence.startDate)
+            }
             if showsSkipButton && !isJoined {
                 Button("Пропустить") {
                     store.toggleSkip(meetingID: occurrence.meeting.id, on: occurrence.startDate)
@@ -211,6 +217,7 @@ struct MenuBarContentView: View {
                 ConnectOptionButton(
                     title: option.title,
                     isPrimary: !isJoined && option.id == connectOptions.first?.id,
+                    iconSystemName: option.systemImage,
                     action: {
                         MeetingLauncher.open(option.url)
                         store.recordJoinIfEligible(
@@ -227,6 +234,27 @@ struct MenuBarContentView: View {
         .popupRowHoverHighlight()
     }
 
+    /// Маленькая кнопка-значок "Копировать название и ссылку". После
+    /// нажатия значок на 1,5 секунды становится галочкой.
+    private func copyButton(rowID: String, copy: @escaping () -> Void) -> some View {
+        let didCopy = copiedRowID == rowID
+        return Button {
+            copy()
+            copiedRowID = rowID
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                if copiedRowID == rowID {
+                    copiedRowID = nil
+                }
+            }
+        } label: {
+            Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                .font(.callout)
+        }
+        .buttonStyle(PopupIconButtonStyle())
+        .help(didCopy ? "Скопировано" : "Копировать название и ссылку")
+    }
+
     private func quickRoomRow(_ meeting: Meeting) -> some View {
         let connectOptions = MeetingLauncher.connectOptions(for: meeting, telemostMode: settings.telemostConnectionMode)
         return HStack {
@@ -234,10 +262,14 @@ struct MenuBarContentView: View {
             Text(meeting.name)
                 .font(.headline)
             Spacer()
+            copyButton(rowID: meeting.id.uuidString) {
+                MeetingLauncher.copyShareText(for: meeting)
+            }
             ForEach(connectOptions) { option in
                 ConnectOptionButton(
                     title: option.title,
                     isPrimary: option.id == connectOptions.first?.id,
+                    iconSystemName: option.systemImage,
                     action: { MeetingLauncher.open(option.url) }
                 )
                 .controlSize(.small)

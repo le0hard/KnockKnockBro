@@ -267,8 +267,7 @@ struct CalendarWindowView: View {
 
             Text(occurrence.meeting.name)
                 .font(.headline)
-                .strikethrough(item.isSkipped)
-                .foregroundStyle(item.isSkipped ? .secondary : .primary)
+                .pastMeetingNameStyle(item.isSkipped || hasStarted)
                 .lineLimit(2)
 
             Spacer(minLength: 8)

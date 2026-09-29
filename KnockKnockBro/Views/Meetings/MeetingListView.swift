@@ -146,6 +146,7 @@ struct MeetingListView: View {
         case .today:
             combinedList(
                 primary: todayMeetings,
+                strikesRecurringStartedToday: true,
                 emptyIcon: "calendar",
                 emptyTitle: "Тишина в календаре",
                 emptyDescription: "Свободный день."
@@ -180,7 +181,7 @@ struct MeetingListView: View {
                     )
                 } else {
                     ForEach(pastOneTimeMeetings) { meeting in
-                        meetingRow(for: meeting)
+                        meetingRow(for: meeting, isPast: true)
                     }
                 }
             }
@@ -189,8 +190,13 @@ struct MeetingListView: View {
         }
     }
 
+    /// - Parameter strikesRecurringStartedToday: в разделе "Сегодня"
+    ///   зачёркивается и повторяющаяся встреча, чей сегодняшний экземпляр
+    ///   уже начался; в "Все встречи" повторяющиеся не зачёркиваются —
+    ///   правило повторения не "проходит".
     private func combinedList(
         primary: [Meeting],
+        strikesRecurringStartedToday: Bool = false,
         emptyIcon: String,
         emptyTitle: String,
         emptyDescription: String
@@ -205,7 +211,7 @@ struct MeetingListView: View {
                     )
                 } else {
                     ForEach(primary) { meeting in
-                        meetingRow(for: meeting)
+                        meetingRow(for: meeting, isPast: hasStarted(meeting, includingRecurringToday: strikesRecurringStartedToday))
                     }
                 }
             }
@@ -220,9 +226,10 @@ struct MeetingListView: View {
         }
     }
 
-    private func meetingRow(for meeting: Meeting) -> some View {
+    private func meetingRow(for meeting: Meeting, isPast: Bool = false) -> some View {
         MeetingRow(
             meeting: meeting,
+            isPast: isPast,
             didCopy: copiedMeetingID == meeting.id,
             hasOccurrenceToday: hasOccurrenceToday(meeting),
             isSkippedToday: store.isSkipped(meetingID: meeting.id),
@@ -267,6 +274,22 @@ struct MeetingListView: View {
         return (0, Double(minutes))
     }
 
+    /// Встреча уже началась: разовая — по своему моменту начала;
+    /// повторяющаяся — только если `includingRecurringToday` и её
+    /// сегодняшний экземпляр уже начался.
+    private func hasStarted(_ meeting: Meeting, includingRecurringToday: Bool) -> Bool {
+        let now = Date()
+        if let start = meeting.oneTimeStartDate() {
+            return start <= now
+        }
+        guard includingRecurringToday else { return false }
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: now)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return false }
+        return OccurrenceEngine.occurrences(for: meeting, in: DateInterval(start: dayStart, end: dayEnd), calendar: calendar)
+            .contains { $0.startDate <= now }
+    }
+
     private func hasOccurrenceToday(_ meeting: Meeting) -> Bool {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: Date())
@@ -280,6 +303,9 @@ struct MeetingListView: View {
 private struct MeetingRow: View {
     @Environment(\.colorScheme) private var colorScheme
     let meeting: Meeting
+    /// Встреча уже прошла/началась — название зачёркнуто (время в
+    /// подзаголовке — нет).
+    let isPast: Bool
     let didCopy: Bool
     let hasOccurrenceToday: Bool
     let isSkippedToday: Bool
@@ -298,6 +324,7 @@ private struct MeetingRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(meeting.name)
                     .font(.headline)
+                    .pastMeetingNameStyle(isPast)
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)

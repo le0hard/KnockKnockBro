@@ -22,6 +22,7 @@ It's not tied to any single video service. Yandex Telemost is the primary scenar
 - **Multiple independent reminders** per meeting, each with its own offset and sound.
 - **Join / Snooze right from the notification** — no need to switch to the app.
 - **Skip Today** — cancel a single occurrence of a recurring meeting without touching the recurring schedule itself.
+- **Knows you already joined** — once you click Join close to the start (or late), that day's Auto Join countdown, remaining reminders and wake-up prompt are dropped, and the meeting shows a green checkmark everywhere.
 - **Enable / Disable** — pause a meeting entirely; notifications and Auto Join stop, the meeting stays configured.
 - **Auto Join** — a visible, cancellable countdown panel before the app opens the meeting URL automatically. Never opens anything without warning.
 - **Sleep/Wake aware** — if your Mac was asleep when a meeting started, KnockKnockBro won't silently launch it after the fact; it asks first.

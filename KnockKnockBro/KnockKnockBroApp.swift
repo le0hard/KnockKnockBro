@@ -9,6 +9,7 @@ struct KnockKnockBroApp: App {
     @State private var appSettingsStore: AppSettingsStore
     @State private var autoJoinRuntime = AutoJoinRuntime()
     @State private var oneTimeMeetingCleaner = OneTimeMeetingCleaner()
+    @State private var updateChecker = UpdateChecker()
     @State private var isShowingAbout = false
 
     init() {
@@ -87,6 +88,7 @@ struct KnockKnockBroApp: App {
                 }
                 .sheet(isPresented: $isShowingAbout) {
                     AboutView()
+                        .environment(updateChecker)
                 }
         }
         .commands {
@@ -112,6 +114,7 @@ struct KnockKnockBroApp: App {
             SettingsView()
                 .environment(appSettingsStore)
                 .environment(meetingStore)
+                .environment(updateChecker)
         }
 
         MenuBarExtra(isInserted: Binding(

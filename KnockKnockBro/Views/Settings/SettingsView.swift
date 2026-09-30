@@ -57,6 +57,7 @@ private struct SettingsCategoryIcon: View {
 struct SettingsView: View {
     @Environment(AppSettingsStore.self) private var settings
     @Environment(MeetingStore.self) private var store
+    @Environment(UpdateChecker.self) private var updateChecker
 
     @State private var selectedCategory: SettingsCategory? = .general
 
@@ -69,6 +70,14 @@ struct SettingsView: View {
     @State private var isDropTargeted = false
 
     private static let countdownPresets: [TimeInterval] = [5, 10, 15, 30, 60]
+
+    /// "0.6.0 (7)".
+    private static let installedVersion: String = {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = info?["CFBundleVersion"] as? String ?? "—"
+        return "\(version) (\(build))"
+    }()
 
     var body: some View {
         NavigationSplitView {
@@ -87,6 +96,11 @@ struct SettingsView: View {
                 .navigationTitle(selectedCategory?.title ?? "Настройки")
         }
         .frame(minWidth: 620, idealWidth: 620, minHeight: 420, idealHeight: 420)
+        // Автоматическая проверка обновлений — только здесь, при открытии
+        // Настроек (не при запуске приложения), и не чаще раза в сутки.
+        .task {
+            await updateChecker.checkIfNeeded()
+        }
         .sheet(isPresented: $isShowingExport) {
             ExportSheetView()
                 .environment(store)
@@ -168,6 +182,15 @@ struct SettingsView: View {
                     Text("Открывать главное окно при запуске")
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+
+            Section("Обновления") {
+                LabeledContent("Установлена версия", value: Self.installedVersion)
+                UpdateStatusView()
+                Text("KnockKnockBro сам проверяет новую версию на GitHub при открытии настроек, не чаще раза в день. О вас ничего не отправляется, а скачать обновление можно со страницы релиза.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .formStyle(.grouped)
@@ -305,5 +328,6 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environment(AppSettingsStore())
+        .environment(UpdateChecker())
         .environment(MeetingStore())
 }

@@ -14,15 +14,25 @@ struct StorageFile: Codable {
     var formatVersion: Int
     var meetings: [Meeting]
     var exceptions: [MeetingOccurrenceException]
+    /// Настройки приложения (формат 3+). Есть только в файлах ЭКСПОРТА —
+    /// в `meetings.json` на диске всегда `nil` (настройки живут в
+    /// `UserDefaults`), ключ при этом просто не пишется.
+    var settings: AppSettingsSnapshot?
 
     private enum CodingKeys: String, CodingKey {
-        case formatVersion, meetings, exceptions
+        case formatVersion, meetings, exceptions, settings
     }
 
-    init(formatVersion: Int, meetings: [Meeting], exceptions: [MeetingOccurrenceException]) {
+    init(
+        formatVersion: Int,
+        meetings: [Meeting],
+        exceptions: [MeetingOccurrenceException],
+        settings: AppSettingsSnapshot? = nil
+    ) {
         self.formatVersion = formatVersion
         self.meetings = meetings
         self.exceptions = exceptions
+        self.settings = settings
     }
 
     init(from decoder: Decoder) throws {
@@ -30,6 +40,15 @@ struct StorageFile: Codable {
         formatVersion = try container.decode(Int.self, forKey: .formatVersion)
         meetings = try container.decode([Meeting].self, forKey: .meetings)
         exceptions = try container.decodeIfPresent([MeetingOccurrenceException].self, forKey: .exceptions) ?? []
+        settings = try container.decodeIfPresent(AppSettingsSnapshot.self, forKey: .settings)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(formatVersion, forKey: .formatVersion)
+        try container.encode(meetings, forKey: .meetings)
+        try container.encode(exceptions, forKey: .exceptions)
+        try container.encodeIfPresent(settings, forKey: .settings)
     }
 }
 
@@ -53,12 +72,15 @@ final class MeetingStore {
     ///   Версия поднята, чтобы старые версии KnockKnockBro при импорте
     ///   явно отклоняли файл с понятным сообщением, а не падали на
     ///   неизвестном типе расписания.
-    static let currentFormatVersion = 2
+    /// - 3 — v0.6.0: блок `settings` (настройки приложения) в экспорте.
+    ///   Отметка подключения `joined` (v0.5.0) — необязательное поле, её
+    ///   читают и формат 2, и формат 3.
+    static let currentFormatVersion = 3
 
     /// Версии формата, которые текущая версия приложения умеет читать.
-    /// Формат 2 — строгое надмножество формата 1, поэтому файлы версии 1
+    /// Каждая следующая — надмножество предыдущей, поэтому старые файлы
     /// читаются без преобразований.
-    static let supportedFormatVersions: ClosedRange<Int> = 1...2
+    static let supportedFormatVersions: ClosedRange<Int> = 1...3
 
     /// Через сколько после начала разовая встреча с автоудалением
     /// удаляется из списка.

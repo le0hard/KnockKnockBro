@@ -75,6 +75,18 @@ enum MeetingsImportMode: Hashable {
     case merge
 }
 
+/// Статус одной встречи из файла при объединении.
+enum MergeStatus: Equatable {
+    /// Новая — будет добавлена.
+    case added
+    /// Тот же ID, другое содержимое — будет обновлена.
+    case updated
+    /// Тот же ID и то же содержимое.
+    case unchanged
+    /// Другой ID, но такая встреча уже есть — будет пропущена.
+    case duplicate
+}
+
 /// Что изменит объединение — для сводки в диалоге импорта.
 struct MergeSummary: Equatable {
     /// Новые встречи, которых ещё нет.
@@ -258,19 +270,34 @@ struct ImportExportService {
     static func mergeSummary(currentMeetings: [Meeting], imported: ValidatedImport) -> MergeSummary {
         var summary = MergeSummary()
         for meeting in imported.meetings {
-            if let existing = currentMeetings.first(where: { $0.id == meeting.id }) {
-                if existing == meeting {
-                    summary.unchanged += 1
-                } else {
-                    summary.updated += 1
-                }
-            } else if currentMeetings.contains(where: { isDuplicate($0, of: meeting) }) {
-                summary.skippedDuplicates += 1
-            } else {
-                summary.added += 1
+            switch mergeStatus(of: meeting, currentMeetings: currentMeetings) {
+            case .added: summary.added += 1
+            case .updated: summary.updated += 1
+            case .unchanged: summary.unchanged += 1
+            case .duplicate: summary.skippedDuplicates += 1
             }
         }
         return summary
+    }
+
+    /// Что случится с одной встречей из файла при объединении.
+    static func mergeStatus(of meeting: Meeting, currentMeetings: [Meeting]) -> MergeStatus {
+        if let existing = currentMeetings.first(where: { $0.id == meeting.id }) {
+            return existing == meeting ? .unchanged : .updated
+        }
+        if currentMeetings.contains(where: { isDuplicate($0, of: meeting) }) {
+            return .duplicate
+        }
+        return .added
+    }
+
+    /// Только выбранные в диалоге встречи — вместе со своими отметками.
+    static func filtered(_ imported: ValidatedImport, keepingMeetingIDs ids: Set<UUID>) -> ValidatedImport {
+        ValidatedImport(
+            meetings: imported.meetings.filter { ids.contains($0.id) },
+            exceptions: imported.exceptions.filter { ids.contains($0.meetingID) },
+            settings: imported.settings
+        )
     }
 
     /// Две встречи с РАЗНЫМИ ID считаются дубликатами, если совпадают

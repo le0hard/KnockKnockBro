@@ -99,3 +99,24 @@ struct MeetingSchedule: Codable, Equatable, Hashable {
     var minute: Int
     var recurrence: Recurrence
 }
+
+extension MeetingSchedule {
+    /// Для UI: "10:00 · по будням", "15:00 · 5 октября 2026 г.".
+    var displayDescription: String {
+        let time = String(format: "%02d:%02d", hour, minute)
+        let recurrenceText: String
+        switch recurrence {
+        case .daily:
+            recurrenceText = "каждый день"
+        case .weekdays:
+            recurrenceText = "по будням"
+        case .weekly(let day):
+            recurrenceText = "еженедельно, \(day.shortDisplayName)"
+        case .customDays(let days):
+            recurrenceText = days.sorted().map(\.shortDisplayName).joined(separator: ", ")
+        case .once(let day, let autoDelete):
+            recurrenceText = day.displayString() + (autoDelete ? " · удалится после встречи" : "")
+        }
+        return "\(time) · \(recurrenceText)"
+    }
+}

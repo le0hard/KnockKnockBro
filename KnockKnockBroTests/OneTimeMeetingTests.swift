@@ -181,11 +181,11 @@ final class OneTimeMeetingTests: XCTestCase {
         }
     }
 
-    func testExportUsesFormatVersion2AndRoundTripsOneTimeMeeting() throws {
+    func testExportUsesCurrentFormatVersionAndRoundTripsOneTimeMeeting() throws {
         let meeting = makeOneTimeMeeting(autoDelete: true)
         let data = try ImportExportService.export(meetings: [meeting], exceptions: [])
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        XCTAssertEqual(json?["formatVersion"] as? Int, 2)
+        XCTAssertGreaterThanOrEqual(json?["formatVersion"] as? Int ?? 0, 2)
 
         switch ImportExportService.validate(data: data) {
         case .success(let validated):

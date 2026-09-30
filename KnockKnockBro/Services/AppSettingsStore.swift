@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Режим подключения к встречам Яндекс Телемоста.
-enum TelemostConnectionMode: String, CaseIterable, Identifiable {
+enum TelemostConnectionMode: String, Codable, CaseIterable, Identifiable {
     case both
     case desktopOnly
     case webOnly
@@ -105,5 +105,33 @@ final class AppSettingsStore {
         } else {
             self.joinCountingWindowMinutes = JoinTracking.defaultCountingWindowMinutes
         }
+    }
+}
+
+// MARK: - Экспорт / импорт настроек (v0.6.0)
+
+extension AppSettingsStore {
+    /// Снимок текущих настроек для экспорта. Состояние автозапуска
+    /// передаётся снаружи — оно хранится в системе, а не здесь.
+    func snapshot(launchAtLogin: Bool) -> AppSettingsSnapshot {
+        AppSettingsSnapshot(
+            defaultAutoJoinCountdown: defaultAutoJoinCountdown,
+            telemostConnectionMode: telemostConnectionMode,
+            joinCountingWindowMinutes: joinCountingWindowMinutes,
+            showInMenuBar: showInMenuBar,
+            openMainWindowOnLaunch: openMainWindowOnLaunch,
+            launchAtLogin: launchAtLogin
+        )
+    }
+
+    /// Применяет импортированные настройки. Автозапуск здесь НЕ меняется:
+    /// это системная регистрация, её включает/выключает вызывающий код
+    /// через `LoginItemService` (операция может завершиться ошибкой).
+    func apply(_ snapshot: AppSettingsSnapshot) {
+        defaultAutoJoinCountdown = snapshot.defaultAutoJoinCountdown
+        telemostConnectionMode = snapshot.telemostConnectionMode
+        joinCountingWindowMinutes = snapshot.joinCountingWindowMinutes
+        showInMenuBar = snapshot.showInMenuBar
+        openMainWindowOnLaunch = snapshot.openMainWindowOnLaunch
     }
 }

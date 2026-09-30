@@ -404,7 +404,7 @@ private struct MeetingRow: View {
     private var subtitle: String {
         var parts: [String] = [meeting.service.displayName]
         if let schedule = meeting.schedule {
-            parts.append(scheduleDescription(schedule))
+            parts.append(schedule.displayDescription)
         }
         if isJoinedToday {
             parts.append("подключились сегодня")
@@ -414,24 +414,6 @@ private struct MeetingRow: View {
             parts.append("автоподключение отменено сегодня")
         }
         return parts.joined(separator: " · ")
-    }
-
-    private func scheduleDescription(_ schedule: MeetingSchedule) -> String {
-        let time = String(format: "%02d:%02d", schedule.hour, schedule.minute)
-        let recurrence: String
-        switch schedule.recurrence {
-        case .daily:
-            recurrence = "каждый день"
-        case .weekdays:
-            recurrence = "по будням"
-        case .weekly(let day):
-            recurrence = "еженедельно, \(day.shortDisplayName)"
-        case .customDays(let days):
-            recurrence = days.sorted().map(\.shortDisplayName).joined(separator: ", ")
-        case .once(let day, let autoDelete):
-            recurrence = day.displayString() + (autoDelete ? " · удалится после встречи" : "")
-        }
-        return "\(time) · \(recurrence)"
     }
 }
 

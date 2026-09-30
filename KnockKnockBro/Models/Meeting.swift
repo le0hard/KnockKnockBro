@@ -79,3 +79,22 @@ extension Meeting {
         return day < CalendarDay(date: now, calendar: calendar)
     }
 }
+
+// MARK: - Описание для списков выбора (окна импорта/экспорта, v0.6.0)
+
+extension Meeting {
+    /// "Яндекс Телемост · 10:00 · по будням", "Google Meet · быстрый
+    /// доступ · выключена".
+    var summaryLine: String {
+        var parts = [service.displayName]
+        if let schedule {
+            parts.append(schedule.displayDescription)
+        } else {
+            parts.append("быстрый доступ")
+        }
+        if !enabled {
+            parts.append("выключена")
+        }
+        return parts.joined(separator: " · ")
+    }
+}

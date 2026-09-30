@@ -57,19 +57,27 @@ private struct SettingsCategoryIcon: View {
 struct SettingsView: View {
     @Environment(AppSettingsStore.self) private var settings
     @Environment(MeetingStore.self) private var store
+    @Environment(UpdateChecker.self) private var updateChecker
 
     @State private var selectedCategory: SettingsCategory? = .general
 
     @State private var loginItemStatus: LoginItemService.Status = LoginItemService.currentStatus
     @State private var loginItemError: String?
 
-    @State private var exportErrorMessage: String?
-    @State private var pendingImport: ValidatedImport?
-    @State private var existingMeetingsCountAtImportStart = 0
+    @State private var isShowingExport = false
+    @State private var pendingImport: PendingImport?
     @State private var importErrorMessage: String?
     @State private var isDropTargeted = false
 
     private static let countdownPresets: [TimeInterval] = [5, 10, 15, 30, 60]
+
+    /// "0.6.0 (7)".
+    private static let installedVersion: String = {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = info?["CFBundleVersion"] as? String ?? "—"
+        return "\(version) (\(build))"
+    }()
 
     var body: some View {
         NavigationSplitView {
@@ -88,21 +96,23 @@ struct SettingsView: View {
                 .navigationTitle(selectedCategory?.title ?? "Настройки")
         }
         .frame(minWidth: 620, idealWidth: 620, minHeight: 420, idealHeight: 420)
-        .confirmationDialog(
-            "Импортировать встречи?",
-            isPresented: Binding(
-                get: { pendingImport != nil },
-                set: { isPresented in if !isPresented { pendingImport = nil } }
-            ),
-            presenting: pendingImport
-        ) { validated in
-            Button("Импортировать", role: .destructive) {
-                store.replaceAll(meetings: validated.meetings, exceptions: validated.exceptions)
-                pendingImport = nil
-            }
-            Button("Отмена", role: .cancel) { pendingImport = nil }
-        } message: { validated in
-            Text("Текущие \(existingMeetingsCountAtImportStart) встреч(и) будут заменены на \(validated.meetings.count) из файла. Это действие нельзя отменить.")
+        // Автоматическая проверка обновлений — только здесь, при открытии
+        // Настроек (не при запуске приложения), и не чаще раза в сутки.
+        .task {
+            await updateChecker.checkIfNeeded()
+        }
+        .sheet(isPresented: $isShowingExport) {
+            ExportSheetView()
+                .environment(store)
+                .environment(settings)
+        }
+        .sheet(item: $pendingImport, onDismiss: {
+            // Импорт мог включить/выключить автозапуск — обновляем тумблер.
+            loginItemStatus = LoginItemService.currentStatus
+        }) { pending in
+            ImportSheetView(pending: pending)
+                .environment(store)
+                .environment(settings)
         }
         .alert(
             "Не удалось импортировать файл",
@@ -173,6 +183,15 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+
+            Section("Обновления") {
+                LabeledContent("Установлена версия", value: Self.installedVersion)
+                UpdateStatusView()
+                Text("KnockKnockBro сам проверяет новую версию на GitHub при открытии настроек, не чаще раза в день. О вас ничего не отправляется, а скачать обновление можно со страницы релиза.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .formStyle(.grouped)
     }
@@ -239,18 +258,16 @@ struct SettingsView: View {
     private var importExportSettings: some View {
         Form {
             Section {
-                Button("Экспортировать в JSON") {
-                    exportToFile()
+                Button("Экспортировать в JSON…") {
+                    isShowingExport = true
                 }
                 Button("Импортировать из файла") {
                     importFromFile()
                 }
-                if let exportErrorMessage {
-                    Text(exportErrorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text("При экспорте и импорте можно выбрать, какие встречи взять и нужно ли переносить настройки приложения.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section {
@@ -289,22 +306,6 @@ struct SettingsView: View {
         }
     }
 
-    private func exportToFile() {
-        do {
-            let data = try ImportExportService.export(meetings: store.meetings, exceptions: store.exceptions)
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [.json]
-            panel.nameFieldStringValue = "KnockKnockBro-Export.json"
-            panel.canCreateDirectories = true
-            if panel.runModal() == .OK, let url = panel.url {
-                try data.write(to: url, options: .atomic)
-                exportErrorMessage = nil
-            }
-        } catch {
-            exportErrorMessage = "Не удалось экспортировать данные: \(error.localizedDescription)"
-        }
-    }
-
     private func importFromFile() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
@@ -315,17 +316,11 @@ struct SettingsView: View {
     }
 
     private func handleImportFile(at url: URL) {
-        do {
-            let data = try Data(contentsOf: url)
-            switch ImportExportService.validate(data: data) {
-            case .success(let validated):
-                existingMeetingsCountAtImportStart = store.meetings.count
-                pendingImport = validated
-            case .failure(let error):
-                importErrorMessage = error.localizedDescription
-            }
-        } catch {
-            importErrorMessage = "Не удалось прочитать файл: \(error.localizedDescription)"
+        switch PendingImport.load(from: url) {
+        case .success(let pending):
+            pendingImport = pending
+        case .failure(let failure):
+            importErrorMessage = failure.message
         }
     }
 }
@@ -333,5 +328,6 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environment(AppSettingsStore())
+        .environment(UpdateChecker())
         .environment(MeetingStore())
 }

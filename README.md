@@ -28,7 +28,8 @@ It's not tied to any single video service. Yandex Telemost is the primary scenar
 - **Sleep/Wake aware** — if your Mac was asleep when a meeting started, KnockKnockBro won't silently launch it after the fact; it asks first.
 - **Menu bar first** — live countdown to the next meeting right in the menu bar, with a quick popover for today's schedule and Quick Rooms.
 - **Sidebar main window** — Today / All Meetings / Quick Access / Archive, all backed by the same underlying data.
-- **JSON export & import** — a single human-readable file, versioned, with drag & drop support and full validation before anything is applied.
+- **JSON export & import** — one human-readable, versioned file with meetings *and* app settings; pick exactly which meetings (and whether settings) to export or import, merge or replace, drag & drop supported, full validation before anything is applied.
+- **Update check** — once a day at most, only when you open Settings (never at launch), KnockKnockBro asks GitHub Releases whether a newer version exists and offers to open the download page. Nothing about you is sent, nothing is downloaded automatically.
 - **Login at startup** — via the modern `SMAppService` API, no legacy login-item hacks.
 - **100% local** — no account, no backend, no telemetry. Everything lives in a JSON file in your own `Application Support` folder.
 

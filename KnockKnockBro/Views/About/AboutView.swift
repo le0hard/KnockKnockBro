@@ -21,11 +21,14 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text("Следит за созвонами. Напоминает вовремя. Открывает, когда ты готов.")
+            Text("Следит за созвонами.\nНапоминает вовремя.\nОткрывает, когда ты готов.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 280)
+                // Без этого окно-sheet подбирает высоту по одной строке и
+                // обрезает текст многоточием вместо переноса.
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(versionString)
                 .font(.caption)
@@ -38,6 +41,10 @@ struct AboutView: View {
                 .font(.callout.italic())
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .frame(maxWidth: 280)
+                .fixedSize(horizontal: false, vertical: true)
+
+            UpdateStatusView(alignment: .center)
                 .frame(maxWidth: 280)
 
             Button("Закрыть") {
@@ -59,4 +66,5 @@ struct AboutView: View {
 
 #Preview {
     AboutView()
+        .environment(UpdateChecker())
 }

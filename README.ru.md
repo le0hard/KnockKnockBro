@@ -11,11 +11,21 @@ KnockKnockBro — небольшой нативный помощник для о
 
 Приложение не привязано к одному сервису. Основной сценарий — Яндекс Телемост (в том числе его приложение для Mac), но работают и Google Meet, Zoom, Microsoft Teams, и любая другая ссылка на встречу.
 
-![KnockKnockBro](docs/screenshot.png)
+![KnockKnockBro — строка меню, главное окно, календарь, импорт и автоподключение](docs/preview.png)
 
 🇬🇧 [Read in English](README.md)
 
 ---
+
+## Скриншоты
+
+| Строка меню | Главное окно |
+|:---:|:---:|
+| <img src="docs/screenshots/menubar.png" alt="Попап строки меню" width="400"> | <img src="docs/screenshots/main-window.png" alt="Главное окно" width="400"> |
+| **Календарь** | **Автоподключение** |
+| <img src="docs/screenshots/calendar.png" alt="Календарь" width="300"> | <img src="docs/screenshots/auto-join.png" alt="Обратный отсчёт автоподключения" width="400"> |
+| **Импорт** | |
+| <img src="docs/screenshots/import.png" alt="Окно импорта" width="400"> | |
 
 ## Скачать
 

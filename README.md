@@ -11,11 +11,21 @@ KnockKnockBro is a small native macOS menu bar assistant for online meetings. It
 
 It isn't tied to one video service. Yandex Telemost is the primary scenario (including its desktop app), but Google Meet, Zoom, Microsoft Teams and any other meeting URL work too.
 
-![KnockKnockBro](docs/screenshot.png)
+![KnockKnockBro — menu bar, main window, calendar, import and Auto Join](docs/preview.png)
 
 🇷🇺 [Читать на русском](README.ru.md)
 
 ---
+
+## Screenshots
+
+| Menu bar | Main window |
+|:---:|:---:|
+| <img src="docs/screenshots/menubar.png" alt="Menu bar popover" width="400"> | <img src="docs/screenshots/main-window.png" alt="Main window" width="400"> |
+| **Calendar** | **Auto Join** |
+| <img src="docs/screenshots/calendar.png" alt="Calendar" width="300"> | <img src="docs/screenshots/auto-join.png" alt="Auto Join countdown" width="400"> |
+| **Import** | |
+| <img src="docs/screenshots/import.png" alt="Import window" width="400"> | |
 
 ## Download
 
